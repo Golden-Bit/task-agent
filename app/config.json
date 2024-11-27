@@ -1,0 +1,7 @@
+{
+  "nlp_core_service": "http://34.79.136.231:8100",
+  "mongodb_service": "http://34.79.136.231:8094",
+  "openai_api_keys": [
+    "YOUR OPENAI API KEY"
+  ]
+}
