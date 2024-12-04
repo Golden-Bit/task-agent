@@ -1,4 +1,5 @@
-
+import base64
+from starlette.datastructures import UploadFile as StarletteUploadFile
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Query, Body, status
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -9,7 +10,7 @@ import requests
 import random
 import json
 from starlette.responses import StreamingResponse
-
+from io import BytesIO
 from app.utilities import get_system_message
 
 app = FastAPI()
@@ -22,6 +23,16 @@ app.add_middleware(
     allow_headers=["*"],  # Permetti tutti gli headers
 )
 
+
+class WorkflowInputFile(BaseModel):
+    id_file: str = Field(..., description="Identificativo univoco del file")
+    content_base64: str = Field(..., description="Contenuto del file in formato Base64")
+    description: Optional[str] = Field(None, description="Descrizione opzionale del file")
+
+
+class GenerateWorkflowsInput(BaseModel):
+    files: List[WorkflowInputFile] = Field(..., description="Lista di file in input")
+    prompt: str = Field(..., description="Prompt per la generazione dei workflow")
 
 # Carica la configurazione dal file config.json
 with open("config.json") as config_file:
@@ -400,7 +411,7 @@ async def upload_document(
 
     query = {
         "chat_history": [],
-        "input": "Analizza il documento fornito e crea una descrizione dettalgiata del suo contenuto. usa lo strumento di ricerca in vector store"
+        "input": "Analizza il documento fornito e crea una descrizione dettagliata del suo contenuto. usa lo strumento di ricerca in vector store molteplici volte, fornendo query da molteplici punti di vista. crea una mappa che permetta successivamente di orientarsi tra i contenuti del documento"
     }
 
     inference_kwargs = {}
@@ -464,7 +475,7 @@ async def upload_document(
 #@app.post("/configure_and_load_chain_1/")
 async def configure_and_load_chain_1(
     context: str = Query("default", title="Context", description="The context for the chain configuration"),
-    model_name: str = Query("gpt-4o-mini", title="Model Name", description="The name of the LLM model to load, default is gpt-4o")
+    model_name: str = Query("gpt-4o", title="Model Name", description="The name of the LLM model to load, default is gpt-4o")
 ):
     """
     Configura e carica una chain in memoria basata sul contesto dato.
@@ -569,7 +580,7 @@ async def configure_and_load_chain_1(
 @app.post("/configure_and_load_chain/")
 async def configure_and_load_chain_2(
     session_id: str = Query("default", title="Session ID", description="The session id used for the chain configuration"),
-    model_name: str = Query("gpt-4o-mini", title="Model Name", description="The name of the LLM model to load, default is gpt-4o")
+    model_name: str = Query("gpt-4o", title="Model Name", description="The name of the LLM model to load, default is gpt-4o")
 ):
     """
     Configura e carica una chain in memoria.
@@ -711,3 +722,117 @@ async def get_last_workflow(session_id: str = Query(..., description="The sessio
 
     print(response.json())
     return response.json()
+
+
+def execute_agent(chain_id: str, input_query: str, chat_history: List[List[str]] = []):
+    api_url = "http://34.79.136.231:8100/chains/stream_events_chain"
+
+    # Definire il payload della richiesta
+    payload = {
+        "chain_id": chain_id,
+        "query": {
+            "input": input_query,
+            "chat_history": chat_history
+        },
+        "inference_kwargs": {}
+    }
+
+    # Eseguire la richiesta POST all'API
+    try:
+        response = requests.post(api_url, json=payload)
+        response.raise_for_status()  # Solleva un'eccezione per codici di errore HTTP
+        #data = response.json()  # Decodifica la risposta JSON
+        data = response.__dict__['_content'].decode()
+        print("Risultato dell'API:")
+        print(data)
+        return data
+        #print(json.dumps(data, indent=2))  # Stampa il risultato formattato
+    except requests.exceptions.RequestException as e:
+        print(f"Errore nella chiamata all'API: {e}")
+
+
+@app.post("/generate_workflows", response_model=List[Dict[str, Any]])
+async def generate_workflows(input_data: GenerateWorkflowsInput):
+    """
+    Genera workflow basati sui file forniti e un prompt specificato.
+    Esegue l'upload dei file a contesti multipli utilizzando un ID univoco.
+    """
+    files = input_data.files
+    prompt = input_data.prompt
+    session_id = str(uuid.uuid4())[:10]  # Genera un ID univoco per la sessione
+    results = []
+
+    for file in files:
+        try:
+            # Decodifica il contenuto Base64
+            decoded_content = base64.b64decode(file.content_base64)
+            print(decoded_content)
+            # Creazione dell'oggetto file per il caricamento
+            upload_file = StarletteUploadFile(
+                filename=f"{file.id_file}.txt",  # Aggiungi estensione se necessaria
+                file=BytesIO(decoded_content),
+                #content_type="application/octet-stream"
+            )
+            print(upload_file)
+            # Esegui l'upload utilizzando la funzione
+            response = await upload_document(
+                session_id=session_id,
+                file_id=file.id_file,
+                uploaded_file=upload_file,
+                description=file.description
+            )
+            print(response)
+            # Aggiungi il risultato all'elenco dei risultati
+            results.append({
+                "file_id": file.id_file,
+                "upload_response": response,
+                "status": "success"
+            })
+
+        except Exception as e:
+             print(f"[ERROR]: {e}")
+
+    workflow_data = []
+    configure_chain_url = f"http://127.0.0.1:8091/configure_and_load_chain/?session_id={session_id}"
+    try:
+        response = requests.post(configure_chain_url)
+        if response.status_code == 200:
+            print("Configure agent response:", response.json())
+        else:
+            print(f"Failed to configure agent: {response.status_code}, {response.text}")
+    except Exception as e:
+        print(f"An error occurred during agent configuration: {e}")
+
+    # TODO:
+    #  - tieni conto del prompt inviato in input (direttive e linee guida fornite dall'utente)
+    #
+    input_instructions = [
+        "ciao",
+        "crea una workinstructions a caso e salvala, vai di fantasia senza le mie direttive. procedi con il salvataggio senza chiedermi il permesso",
+        "salva la workinstructions generata nel db senza chiedermi conferma! procedi direttamente !!!"
+    ]
+    chat_history = []
+    for message in input_instructions:
+
+        # Use auto_generated=True to avoid duplicating messages in chat history
+        agent_response = execute_agent(chain_id=f"{session_id}-workflow_generation_chain", input_query=message, chat_history=chat_history)
+        chat_history.append({"role": "user", "content": message})
+        chat_history.append({"role": "ai", "content": agent_response})
+
+    try:
+        get_last_workflow_url = f"http://127.0.0.1:8091/get_last_workflow?session_id={session_id}"
+        response = requests.get(get_last_workflow_url)
+        if response.status_code == 200:
+            workflow_data = response.json()
+        else:
+            print(f"Failed to retrieve last workflow: {response.text}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    return workflow_data
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, port=8091)

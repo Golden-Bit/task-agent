@@ -22,6 +22,9 @@ st.set_page_config(page_title=chatbot_config["page_title"],
 if "messages" not in st.session_state:
     st.session_state.messages = copy.deepcopy(chatbot_config["messages"])
 
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = copy.deepcopy(chatbot_config["messages"])
+
 if "ai_avatar_url" not in st.session_state:
     st.session_state.ai_avatar_url = chatbot_config["ai_avatar_url"]
 
@@ -43,6 +46,53 @@ def is_complete_utf8(data: bytes) -> bool:
         return True
     except UnicodeDecodeError:
         return False
+
+def generate_response(prompt, session_id, auto_generated=False):
+    """Handles generating a response based on a prompt."""
+    chain_id = f"{session_id}-workflow_generation_chain"
+
+    # Show the user message in the chat only if it's not auto-generated
+    if not auto_generated:
+        with st.chat_message("user", avatar=st.session_state.user_avatar_url):
+            st.markdown(prompt)
+        st.session_state.messages.append({"role": "user", "content": prompt})
+
+    if auto_generated:
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+
+    with st.chat_message("assistant", avatar=st.session_state.ai_avatar_url):
+        message_placeholder = st.empty()
+        s = requests.Session()
+        full_response = ""
+        url = f"{api_address}/chains/stream_events_chain"
+        payload = {
+            "chain_id": chain_id,
+            "query": {
+                "input": f"{prompt}",
+                "chat_history": st.session_state.chat_history[-6:] if len(st.session_state.chat_history) > 6
+                else st.session_state.chat_history
+            },
+            "inference_kwargs": {},
+        }
+
+        non_decoded_chunk = b''
+        with s.post(url, json=payload, headers=None, stream=True) as resp:
+            for chunk in resp.iter_content():
+                if chunk:
+                    non_decoded_chunk += chunk
+                    if is_complete_utf8(non_decoded_chunk):
+                        decoded_chunk = non_decoded_chunk.decode("utf-8")
+                        full_response += decoded_chunk
+                        message_placeholder.markdown(full_response + "▌", unsafe_allow_html=True)
+                        non_decoded_chunk = b''  # Clear buffer
+
+        message_placeholder.markdown(full_response)
+
+    # Add assistant's response to chat history if not auto-generated
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    st.session_state.chat_history.append({"role": "assistant", "content": full_response})
+
+    return full_response
 
 def main():
 
@@ -74,7 +124,7 @@ def main():
                     'description': description,
                 }
 
-                upload_document_url = f"http://127.0.0.1:8100/upload_document"
+                upload_document_url = f"http://127.0.0.1:8091/upload_document"
 
                 try:
                     response = requests.post(upload_document_url, data=data, files=files)
@@ -90,7 +140,7 @@ def main():
 
             # Then execute the chain configuration endpoint
             with st.spinner("Configuring and loading the chain..."):
-                configure_chain_url = f"http://127.0.0.1:8100/configure_and_load_chain/?session_id={session_id}"
+                configure_chain_url = f"http://127.0.0.1:8091/configure_and_load_chain/?session_id={session_id}"
                 try:
                     response = requests.post(configure_chain_url)
                     if response.status_code == 200:
@@ -111,7 +161,7 @@ def main():
 
     if st.sidebar.button("Download Last Workflow"):
         try:
-            get_last_workflow_url = f"http://127.0.0.1:8100/get_last_workflow?session_id={session_id}"
+            get_last_workflow_url = f"http://127.0.0.1:8091/get_last_workflow?session_id={session_id}"
             response = requests.get(get_last_workflow_url)
             if response.status_code == 200:
                 workflow_data = response.json()
@@ -123,70 +173,52 @@ def main():
 
         st.sidebar.markdown("---")
 
-    #if st.sidebar.button("Download All Workflows"):
-    #    try:
-    #        get_all_workflows_url = f"http://127.0.0.1:8100/get_all_workflows?collection_name={collection_name}"
-    #        response = requests.get(get_all_workflows_url)
-    #        if response.status_code == 200:
-    #            workflows_data = response.json()
-    #            st.sidebar.markdown(download_json_file(workflows_data, "all_workflows.json"), unsafe_allow_html=True)
-    #        else:
-    #            st.sidebar.error(f"Failed to retrieve all workflows: {response.text}")
-    #    except Exception as e:
-    #        st.sidebar.error(f"An error occurred: {e}")
-
-
     # Main chat interface
+    previus_type = None
     for message in st.session_state.messages:
-        if message["role"] == "user":
+
+        if message["role"] == "user" and previus_type != "user":
             with st.chat_message(message["role"], avatar=st.session_state.user_avatar_url):
                 st.markdown(message["content"])
-        else:
+        elif message["role"] != "user":
             with st.chat_message(message["role"], avatar=st.session_state.ai_avatar_url):
                 st.markdown(message["content"])
+        previus_type = message["role"]
 
     if prompt := st.chat_input("Scrivi qualcosa"):
         st.session_state.messages.append({"role": "user", "content": prompt})
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
 
-        #####################################################################
-        if len(st.session_state.messages) > 10:
-            st.session_state.messages = st.session_state.messages[-10:]
-        #####################################################################
+        generate_response(prompt, session_id)
 
-        with st.chat_message("user", avatar=st.session_state.user_avatar_url):
-            st.markdown(prompt)
+    if st.sidebar.button("Genera Workflows", use_container_width=True):
+        if session_id:
+            st.sidebar.success("Generazione workflows in corso...")
+            generate_workflows(session_id)
+        else:
+            st.sidebar.error("Per favore, inserisci un Session ID valido.")
 
-        with st.chat_message("assistant", avatar=st.session_state.ai_avatar_url):
-            message_placeholder = st.empty()
-            s = requests.Session()
-            full_response = ""
-            url = f"{api_address}/chains/stream_events_chain"
-            payload = {
-                "chain_id": f"{session_id}-workflow_generation_chain",
-                "query": {
-                    "input": prompt,
-                    "chat_history": st.session_state.messages
-                },
-                "inference_kwargs": {},
-            }
+    st.sidebar.markdown(
+        """
+        <div style="text-align: center; margin-top: 20px; font-size: 12px; color: black;">
+            &copy; 2024 Teatek s.p.a. Tutti i diritti riservati.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-            non_decoded_chunk = b''
-            with s.post(url, json=payload, headers=None, stream=True) as resp:
-                for chunk in resp.iter_content():
-                    if chunk:
-                        # Aggiungi il chunk alla sequenza da decodificare
-                        non_decoded_chunk += chunk
-                        print(chunk)
-                        # Decodifica solo quando i byte formano una sequenza UTF-8 completa
-                        if is_complete_utf8(non_decoded_chunk):
-                            decoded_chunk = non_decoded_chunk.decode("utf-8")
-                            full_response += decoded_chunk
-                            message_placeholder.markdown(full_response + "▌", unsafe_allow_html=True)
-                            non_decoded_chunk = b''  # Svuota il buffer
 
-            message_placeholder.markdown(full_response)
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+def generate_workflows(session_id):
+    """Generates a report with predefined messages."""
+    report_messages = [
+        "ciao",
+        "crea una workinstructions a caso e salvala, vai di fantasia senza le mie direttive. procedi con il salvataggio senza chiedermi il permesso",
+        "salva la workinstructions generata nel db senza chiedermi conferma! procedi direttamente !!!"
+    ]
 
-########################################################################################################################
+    for message in report_messages:
+        # Use auto_generated=True to avoid duplicating messages in chat history
+        generate_response(message, session_id, auto_generated=True)
 
 main()
+

@@ -1,0 +1,3 @@
+[theme]
+base="light"  # Usa "light" o "dark" per il tema di base
+primaryColor="#007bff"  # Colore blu principale
