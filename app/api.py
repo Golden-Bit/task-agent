@@ -1,4 +1,6 @@
 import base64
+import time
+
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Query, Body, status
 from pydantic import BaseModel, Field
@@ -724,7 +726,7 @@ async def get_last_workflow(session_id: str = Query(..., description="The sessio
     return response.json()
 
 
-def execute_agent(chain_id: str, input_query: str, chat_history: List[List[str]] = []):
+def execute_agent(chain_id: str, input_query: str, chat_history: List[Dict[str, str]] = []):
     api_url = "http://34.79.136.231:8100/chains/stream_events_chain"
 
     # Definire il payload della richiesta
@@ -751,7 +753,7 @@ def execute_agent(chain_id: str, input_query: str, chat_history: List[List[str]]
         print(f"Errore nella chiamata all'API: {e}")
 
 
-@app.post("/generate_workflows", response_model=List[Dict[str, Any]])
+'''@app.post("/generate_workflows", response_model=List[Dict[str, Any]])
 async def generate_workflows(input_data: GenerateWorkflowsInput):
     """
     Genera workflow basati sui file forniti e un prompt specificato.
@@ -782,6 +784,8 @@ async def generate_workflows(input_data: GenerateWorkflowsInput):
                 description=file.description
             )
             print(response)
+
+            input("...")
             # Aggiungi il risultato all'elenco dei risultati
             results.append({
                 "file_id": file.id_file,
@@ -803,21 +807,62 @@ async def generate_workflows(input_data: GenerateWorkflowsInput):
     except Exception as e:
         print(f"An error occurred during agent configuration: {e}")
 
+    ####################################################################################################################
     # TODO:
     #  - tieni conto del prompt inviato in input (direttive e linee guida fornite dall'utente)
     #
-    input_instructions = [
-        "ciao",
-        "crea una workinstructions a caso e salvala, vai di fantasia senza le mie direttive. procedi con il salvataggio senza chiedermi il permesso",
-        "salva la workinstructions generata nel db senza chiedermi conferma! procedi direttamente !!!"
-    ]
-    chat_history = []
-    for message in input_instructions:
+    #input_instructions = [
+    #    "ciao",
+    #    "crea una workinstructions a caso e salvala, vai di fantasia senza le mie direttive. procedi con il salvataggio senza chiedermi il permesso",
+    #    "salva la workinstructions generata nel db senza chiedermi conferma! procedi direttamente !!!"
+    #]
+    #chat_history = []
+    #for message in input_instructions:
 
-        # Use auto_generated=True to avoid duplicating messages in chat history
-        agent_response = execute_agent(chain_id=f"{session_id}-workflow_generation_chain", input_query=message, chat_history=chat_history)
-        chat_history.append({"role": "user", "content": message})
-        chat_history.append({"role": "ai", "content": agent_response})
+    #    # Use auto_generated=True to avoid duplicating messages in chat history
+    #    agent_response = execute_agent(chain_id=f"{session_id}-workflow_generation_chain", input_query=message, chat_history=chat_history)
+    #    chat_history.append({"role": "user", "content": message})
+    #    chat_history.append({"role": "ai", "content": agent_response})
+    ####################################################################################################################
+
+    chat_history = []
+    max_iterations = 5
+    grado_di_scomposizione = "Alto"
+
+    message_0 = f"osserva e analizza il docuemnto fornito, dunque ipotizza tutte le workflow che si possono creare (senza crearle) e associa ad esse i contenuti a cui fare riferimento (citando pagine di docuemnti e immagini contenute in essi) per crearle successivamente in dettaglio (le creerai nei prossimi messaggi). queste direttive sintentiche verranno usate dopo per sviluppare sequenzialmente i workflow dettalgiati. concentrati solo sulle workflow di configurazione per un massimo di {max_iterations}, inoltre assicurti di scrivere le proposte di workflow in lista numerata."
+
+    agent_response = execute_agent(chain_id=f"{session_id}-workflow_generation_chain", input_query=message_0,
+                                   chat_history=chat_history)
+
+    chat_history.append({"role": "user", "content": message_0})
+    chat_history.append({"role": "assistant", "content": agent_response})
+
+    is_terminated = False
+    cnt = 0
+    while not is_terminated and cnt <= max_iterations:
+        cnt += 1
+
+        messages = [
+            # sostiuire ttcontrol con versione generale (riga 1) (valore sostituito ---> grado_di_scomposizione)
+            f"""workflow da generare: {message_0} --- genera tutte le workinstruction dettagliate e complete per tutti i flussi definiti Nei docuemnti forniti in input.  
+            Inidvidua il prossimo workflow da generare workflows da in ordine di apparizione dei contenuti dal numero 1 al numero N, genera workflow successivo a quello precedentemente generato. In questa fase dovrai generare solo un workflows ( ossia il numero {cnt}) e le sue istruzioni, il successivo workflow sarà poi generato al messaggio successivo, e solo una volta creati tutti i workflows programmati allora dovrai generare stringa di termianzione.
+            Dovrai scomporre ogni workflow nel numero di sottotask adatto (tendi a massimizzarlo). Crea workflow dettalgiato e salvalo nel db. 
+            Quando crei un workflow mostralo sempre all'utente in formato json. Dovrai mostrare in ogni messaggio una sola rappresnetazione json dettalgiata del workflow.
+            Dovai generare workflow scompoenndoli in sottotask con un grado di scomposizione {grado_di_scomposizione}.
+            ATTENIONE: Nel caso in cui invece hai già generato tutti i work flow descritti dal messaggio iniziale allora genera la seguente stringa per porre fien all'iterazione '<command=TERMINATION| TRUE |command=TERMINATION>'.""",
+        ]
+
+        for message in messages:
+            # Use auto_generated=True to avoid duplicating messages in chat history
+            agent_response = execute_agent(chain_id=f"{session_id}-workflow_generation_chain", input_query=message,
+                                           chat_history=chat_history)
+
+            chat_history.append({"role": "user", "content": message_0})
+            chat_history.append({"role": "assistant", "content": agent_response})
+            if "<command=TERMINATION| TRUE |command=TERMINATION>" in agent_response:
+                is_terminated = True
+                break
+    ####################################################################################################################
 
     try:
         get_last_workflow_url = f"http://127.0.0.1:8091/get_last_workflow?session_id={session_id}"
@@ -829,10 +874,24 @@ async def generate_workflows(input_data: GenerateWorkflowsInput):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-    return workflow_data
+    return workflow_data'''
 
+
+@app.post("/generate_workflows", response_model=List[Dict[str, Any]])
+async def generate_workflows(input_data: GenerateWorkflowsInput):
+    """
+    Genera workflow basati sui file forniti e un prompt specificato.
+    Esegue l'upload dei file a contesti multipli utilizzando un ID univoco.
+    """
+    time.sleep(5)
+
+    return {"output_id": str(uuid.uuid4())}
 
 if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, port=8091)
+
+
+
+

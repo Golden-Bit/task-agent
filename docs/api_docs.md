@@ -125,11 +125,3 @@ Content-Type: application/json
 - **NLP Core Service**: Utilizzato per l'analisi dei documenti e l'esecuzione dell'agente.
 
 - **MongoDB Service**: I dettagli dei workflow e delle sessioni vengono salvati su un database MongoDB dedicato.
-
-## Considerazioni Finali
-
-Questo endpoint facilita la generazione automatizzata di workflow basati su documenti forniti dall'utente e specifiche direttive. È essenziale assicurarsi che i file siano correttamente formattati e che il prompt sia chiaro per ottenere risultati ottimali.
-
----
-
-**Fine della Documentazione**

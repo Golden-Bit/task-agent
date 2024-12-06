@@ -68,8 +68,8 @@ def generate_response(prompt, session_id, auto_generated=False):
         payload = {
             "chain_id": chain_id,
             "query": {
-                "input": f"{prompt}",
-                "chat_history": st.session_state.chat_history[-6:] if len(st.session_state.chat_history) > 6
+                "input": prompt,
+                "chat_history": st.session_state.chat_history[-20:] if len(st.session_state.chat_history) > 20
                 else st.session_state.chat_history
             },
             "inference_kwargs": {},
@@ -210,15 +210,36 @@ def main():
 
 def generate_workflows(session_id):
     """Generates a report with predefined messages."""
-    report_messages = [
-        "ciao",
-        "crea una workinstructions a caso e salvala, vai di fantasia senza le mie direttive. procedi con il salvataggio senza chiedermi il permesso",
-        "salva la workinstructions generata nel db senza chiedermi conferma! procedi direttamente !!!"
-    ]
 
-    for message in report_messages:
-        # Use auto_generated=True to avoid duplicating messages in chat history
-        generate_response(message, session_id, auto_generated=True)
+    max_iterations = 20
+    grado_di_scomposizione = "Alto"
+
+    message_0 = f"osserva e analizza il docuemnto fornito, dunque ipotizza tutte le workflow che si possono creare (senza crearle) e associa ad esse i contenuti a cui fare riferimento (citando pagine di docuemnti e immagini contenute in essi) per crearle successivamente in dettaglio (le creerai nei prossimi messaggi). queste direttive sintentiche verranno usate dopo per sviluppare sequenzialmente i workflow dettalgiati. concentrati solo sulle workflow di configurazione per un massimo di {max_iterations}, inoltre assicurti di scrivere le proposte di workflow in lista numerata."
+
+    agent_response_0 = generate_response(message_0, session_id, auto_generated=True)
+
+    is_terminated = False
+    cnt = 0
+    while not is_terminated and cnt <= max_iterations:
+        cnt += 1
+
+        messages = [
+            # sostiuire ttcontrol con versione generale (riga 1) (valore sostituito ---> grado_di_scomposizione)
+            f"""workflow da generare: {message_0} --- genera tutte le workinstruction dettagliate e complete per tutti i flussi definiti Nei docuemnti forniti in input.  
+            Inidvidua il prossimo workflow da generare workflows da in ordine di apparizione dei contenuti dal numero 1 al numero N, genera workflow successivo a quello precedentemente generato. In questa fase dovrai generare solo un workflows ( ossia il numero {cnt}) e le sue istruzioni, il successivo workflow sarà poi generato al messaggio successivo, e solo una volta creati tutti i workflows programmati allora dovrai generare stringa di termianzione.
+            Dovrai scomporre ogni workflow nel numero di sottotask adatto (tendi a massimizzarlo). Crea workflow dettalgiato e salvalo nel db. 
+            Quando crei un workflow mostralo sempre all'utente in formato json. Dovrai mostrare in ogni messaggio una sola rappresnetazione json dettalgiata del workflow.
+            Dovai generare workflow scompoenndoli in sottotask con un grado di scomposizione {grado_di_scomposizione}.
+            ATTENIONE: Nel caso in cui invece hai già generato tutti i work flow descritti dal messaggio iniziale allora genera la seguente stringa per porre fien all'iterazione '<command=TERMINATION| TRUE |command=TERMINATION>'.""",
+        ]
+
+        for message in messages:
+            # Use auto_generated=True to avoid duplicating messages in chat history
+            agent_response = generate_response(message, session_id, auto_generated=True)
+            if "<command=TERMINATION| TRUE |command=TERMINATION>" in agent_response:
+                is_terminated = True
+                break
+
 
 main()
 
