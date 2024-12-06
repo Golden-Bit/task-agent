@@ -877,7 +877,7 @@ async def generate_workflows(input_data: GenerateWorkflowsInput):
     return workflow_data'''
 
 
-@app.post("/generate_workflows", response_model=List[Dict[str, Any]])
+@app.post("/generate_workflows")#, response_model=List[Dict[str, Any]])
 async def generate_workflows(input_data: GenerateWorkflowsInput):
     """
     Genera workflow basati sui file forniti e un prompt specificato.
