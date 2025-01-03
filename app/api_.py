@@ -1,9 +1,8 @@
 import base64
-import os
 import time
 
 from starlette.datastructures import UploadFile as StarletteUploadFile
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Query, Body, status, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Query, Body, status
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import httpx
@@ -424,8 +423,6 @@ async def upload_document(
                                      json={"chain_id": chain_id, "query": query, "inference_kwargs": inference_kwargs})
 
         if response.status_code != 200:
-            #print(response.content)
-            #print(response.json())
             raise HTTPException(status_code=response.status_code, detail=response.json())
 
     print(response.json())
@@ -756,99 +753,41 @@ def execute_agent(chain_id: str, input_query: str, chat_history: List[Dict[str, 
         print(f"Errore nella chiamata all'API: {e}")
 
 
-# -------------------------------------------------------
-# MODELLI Pydantic
-# -------------------------------------------------------
-
-##############################################
-# MODELLI Pydantic (come da tua richiesta)
-##############################################
-class WorkflowInputFile(BaseModel):
+@app.post("/generate_workflows", response_model=List[Dict[str, Any]])
+async def generate_workflows(input_data: GenerateWorkflowsInput):
     """
-    Modello che rappresenta il file in ingresso:
-     - id_file: ID univoco del file
-     - content_base64: contenuto del file in base64
-     - description: descrizione opzionale del file
+    Genera workflow basati sui file forniti e un prompt specificato.
+    Esegue l'upload dei file a contesti multipli utilizzando un ID univoco.
     """
-    id_file: str = Field(..., description="Identificativo univoco del file")
-    content_base64: str = Field(..., description="Contenuto del file in formato Base64")
-    description: Optional[str] = Field(None, description="Descrizione opzionale del file")
-
-
-class UploadWorkflowFilesInput(BaseModel):
-    """
-    Input per l'endpoint di caricamento file:
-     - session_id: ID univoco della sessione
-     - files: lista di file da caricare
-    """
-    session_id: str = Field(..., description="ID univoco della sessione")
-    files: List[WorkflowInputFile] = Field(..., description="Lista di file in input da caricare")
-
-
-class UploadWorkflowFilesOutput(BaseModel):
-    """
-    Output per l'endpoint di caricamento file:
-     - session_id: ID univoco della sessione
-     - results: risultato dell'upload di ciascun file
-    """
-    session_id: str = Field(..., description="ID univoco della sessione")
-    results: List[Dict[str, Any]] = Field(..., description="Lista di risultati di caricamento per ogni file")
-
-
-class GenerateWorkflowInput(BaseModel):
-    """
-    Input per l'endpoint che genera i workflow:
-     - session_id: ID univoco della sessione (deve corrispondere a quello usato in precedenza per caricare i file)
-     - prompt: testo di prompt / istruzioni generali per la generazione dei workflow
-     - max_iterations: numero massimo di workflow da generare (default=5)
-    """
-    session_id: str = Field(..., description="ID univoco della sessione")
-    prompt: str = Field(..., description="Prompt per la generazione dei workflow")
-    max_iterations: int = Field(5, description="Numero massimo di workflow da generare")
-
-
-class GenerateWorkflowOutput(BaseModel):
-    """
-    Output dell'endpoint di generazione:
-     - session_id: ID univoco della sessione
-     - workflow_data: dati dei workflow generati
-    """
-    session_id: str = Field(..., description="ID univoco della sessione")
-    workflow_data: List[Dict[str, Any]] = Field(..., description="Dati dei workflow generati dall'endpoint")
-
-
-###############################################################
-#                  FUNZIONI DI BACKGROUND
-###############################################################
-
-async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, output_filename: str):
-    """
-    Funzione di BACKGROUND che esegue realmente la logica di upload.
-    Salva il risultato in un file JSON locale (output_filename).
-    """
-    session_id = input_data.session_id
     files = input_data.files
+    prompt = input_data.prompt
+    session_id = str(uuid.uuid4())[:10]  # Genera un ID univoco per la sessione
     results = []
 
     for file in files:
         try:
             # Decodifica il contenuto Base64
             decoded_content = base64.b64decode(file.content_base64)
-
+            #print(decoded_content)
             # Creazione dell'oggetto file per il caricamento
-            upload_file = UploadFile(
-                filename=file.id_file,
+            upload_file = StarletteUploadFile(
+                filename=f"{file.id_file}",  # Aggiungi estensione se necessaria
                 file=BytesIO(decoded_content),
+                #content_type="application/octet-stream"
             )
-
-            # Richiama la tua funzione esistente per l'upload
+            #print(upload_file)
+            # Esegui l'upload utilizzando la funzione
             response = await upload_document(
                 session_id=session_id,
                 file_id=file.id_file,
                 uploaded_file=upload_file,
-                description=file.description or ""
+                description=file.description
             )
+            #input("...")
+            print(response)
+            input("...")
 
+            # Aggiungi il risultato all'elenco dei risultati
             results.append({
                 "file_id": file.id_file,
                 "upload_response": response,
@@ -856,170 +795,151 @@ async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, ou
             })
 
         except Exception as e:
-            error_msg = f"Errore durante l'upload del file {file.id_file}: {str(e)}"
-            results.append({
-                "file_id": file.id_file,
-                "error": error_msg,
-                "status": "failed"
-            })
+             print(f"[ERROR]: {e}")
 
-    output_data = {
-        "session_id": session_id,
-        "results": results
-    }
-
-    # Scrivi il JSON di output nel file
-    with open(output_filename, "w", encoding="utf-8") as f:
-        json.dump(output_data, f, ensure_ascii=False, indent=2)
-
-
-async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filename: str):
-    """
-    Funzione di BACKGROUND che esegue realmente la generazione dei workflow.
-    Salva il risultato in un file JSON locale (output_filename).
-    """
-    session_id = input_data.session_id
-    prompt = input_data.prompt
-    max_iterations = input_data.max_iterations
-
-    # 1. Configurazione e caricamento chain (simulato)
+    workflow_data = []
     configure_chain_url = f"http://127.0.0.1:8091/configure_and_load_chain/?session_id={session_id}"
     try:
-        resp_conf = requests.post(configure_chain_url)
-        if resp_conf.status_code != 200:
-            # In un caso reale potresti loggare o gestire diversamente
-            print(f"Failed to configure agent: {resp_conf.text}")
+        response = requests.post(configure_chain_url)
+        if response.status_code == 200:
+            print("Configure agent response:", response.json())
+        else:
+            print(f"Failed to configure agent: {response.status_code}, {response.text}")
     except Exception as e:
-        print(f"An error occurred during agent configuration: {str(e)}")
+        print(f"An error occurred during agent configuration: {e}")
 
-    # 2. Interazione con l’agente per generare i workflow
+    ####################################################################################################################
+    # TODO:
+    #  - tieni conto del prompt inviato in input (direttive e linee guida fornite dall'utente)
+    #
+    #input_instructions = [
+    #    "ciao",
+    #    "crea una workinstructions a caso e salvala, vai di fantasia senza le mie direttive. procedi con il salvataggio senza chiedermi il permesso",
+    #    "salva la workinstructions generata nel db senza chiedermi conferma! procedi direttamente !!!"
+    #]
+    #chat_history = []
+    #for message in input_instructions:
+
+    #    # Use auto_generated=True to avoid duplicating messages in chat history
+    #    agent_response = execute_agent(chain_id=f"{session_id}-workflow_generation_chain", input_query=message, chat_history=chat_history)
+    #    chat_history.append({"role": "user", "content": message})
+    #    chat_history.append({"role": "ai", "content": agent_response})
+    ####################################################################################################################
+
     chat_history = []
-    message_0 = (
-        f"{prompt}\n\n"
-        "Osserva e analizza il documento fornito, dunque ipotizza tutte le workflow che si possono creare (senza crearle) "
-        "e associa ad esse i contenuti a cui fare riferimento (citando pagine di documenti e immagini contenute in essi) "
-        "per crearle successivamente in dettaglio (le creerai nei prossimi messaggi). Queste direttive sintetiche "
-        f"verranno usate dopo per sviluppare sequenzialmente i workflow dettagliati. "
-        f"Concentrati solo sulle workflow di configurazione per un massimo di {max_iterations}, "
-        "inoltre assicurati di scrivere le proposte di workflow in lista numerata. "
-        "Nel caso in cui non sia presente niente nei file descvriptions allora per ora opera basandoti sull esempio fonrnito e restituisci cominque un risultato!"
-    )
+    max_iterations = 5
+    grado_di_scomposizione = "Alto"
 
-    # Prima invocazione all'agent
-    agent_response = execute_agent(
-        chain_id=f"{session_id}-workflow_generation_chain",
-        input_query=message_0,
-        chat_history=chat_history
-    )
+    message_0 = f"osserva e analizza il docuemnto fornito, dunque ipotizza tutte le workflow che si possono creare (senza crearle) e associa ad esse i contenuti a cui fare riferimento (citando pagine di docuemnti e immagini contenute in essi) per crearle successivamente in dettaglio (le creerai nei prossimi messaggi). queste direttive sintentiche verranno usate dopo per sviluppare sequenzialmente i workflow dettalgiati. concentrati solo sulle workflow di configurazione per un massimo di {max_iterations}, inoltre assicurti di scrivere le proposte di workflow in lista numerata."
+
+    agent_response = execute_agent(chain_id=f"{session_id}-workflow_generation_chain", input_query=message_0,
+                                   chat_history=chat_history)
+
     chat_history.append({"role": "user", "content": message_0})
     chat_history.append({"role": "assistant", "content": agent_response})
 
     is_terminated = False
     cnt = 0
-    grado_di_scomposizione = "Alto"
-
     while not is_terminated and cnt <= max_iterations:
         cnt += 1
-        next_message = (
-            f"Workflow da generare: {message_0}\n\n"
-            f"--- Genera il workflow numero {cnt} (scomposizione: {grado_di_scomposizione}). "
-            "Crea una work instruction dettagliata e completa per il flusso definito, e salvala nel DB. "
-            "Mostra il risultato in formato JSON. Se tutti i workflow sono stati generati, "
-            "invia la stringa di terminazione '<command=TERMINATION| TRUE |command=TERMINATION>'."
-            "Nel caso in cui non sia presente niente nei file descvriptions allora per ora opera basandoti sull esempio fonrnito e restituisci cominque un risultato!"
-        )
 
-        agent_response = execute_agent(
-            chain_id=f"{session_id}-workflow_generation_chain",
-            input_query=next_message,
-            chat_history=chat_history
-        )
-        chat_history.append({"role": "user", "content": next_message})
-        chat_history.append({"role": "assistant", "content": agent_response})
+        messages = [
+            # sostiuire ttcontrol con versione generale (riga 1) (valore sostituito ---> grado_di_scomposizione)
+            f"""workflow da generare: {message_0} --- genera tutte le workinstruction dettagliate e complete per tutti i flussi definiti Nei docuemnti forniti in input.  
+            Inidvidua il prossimo workflow da generare workflows da in ordine di apparizione dei contenuti dal numero 1 al numero N, genera workflow successivo a quello precedentemente generato. In questa fase dovrai generare solo un workflows ( ossia il numero {cnt}) e le sue istruzioni, il successivo workflow sarà poi generato al messaggio successivo, e solo una volta creati tutti i workflows programmati allora dovrai generare stringa di termianzione.
+            Dovrai scomporre ogni workflow nel numero di sottotask adatto (tendi a massimizzarlo). Crea workflow dettalgiato e salvalo nel db. 
+            Quando crei un workflow mostralo sempre all'utente in formato json. Dovrai mostrare in ogni messaggio una sola rappresnetazione json dettalgiata del workflow.
+            Dovai generare workflow scompoenndoli in sottotask con un grado di scomposizione {grado_di_scomposizione}.
+            ATTENIONE: Nel caso in cui invece hai già generato tutti i work flow descritti dal messaggio iniziale allora genera la seguente stringa per porre fien all'iterazione '<command=TERMINATION| TRUE |command=TERMINATION>'.""",
+        ]
 
-        if "<command=TERMINATION| TRUE |command=TERMINATION>" in agent_response:
-            is_terminated = True
+        for message in messages:
+            # Use auto_generated=True to avoid duplicating messages in chat history
+            agent_response = execute_agent(chain_id=f"{session_id}-workflow_generation_chain", input_query=message,
+                                           chat_history=chat_history)
+            print(agent_response)
+            chat_history.append({"role": "user", "content": message_0})
+            chat_history.append({"role": "assistant", "content": agent_response})
+            if "<command=TERMINATION| TRUE |command=TERMINATION>" in agent_response:
+                is_terminated = True
+                break
+    ####################################################################################################################
 
-    # 3. Recupera i workflow generati (simulato)
-    workflow_data = []
     try:
         get_last_workflow_url = f"http://127.0.0.1:8091/get_last_workflow?session_id={session_id}"
-        resp_last = requests.get(get_last_workflow_url)
-        if resp_last.status_code == 200:
-            workflow_data = resp_last.json()
+        response = requests.get(get_last_workflow_url)
+        if response.status_code == 200:
+            workflow_data = response.json()
         else:
-            print(f"Failed to retrieve last workflow: {resp_last.text}")
+            print(f"Failed to retrieve last workflow: {response.text}")
     except Exception as e:
         print(f"An error occurred: {e}")
 
-    output_data = {
-        "session_id": session_id,
-        "workflow_data": workflow_data
-    }
-
-    # Salva il file di output
-    with open(output_filename, "w", encoding="utf-8") as f:
-        json.dump(output_data, f, ensure_ascii=False, indent=2)
+    return workflow_data
 
 
-###############################################################
-#              ENDPOINTS (in BACKGROUND)
-###############################################################
+from typing import Optional, List, Dict
+from fastapi import Body, Form, HTTPException
+import requests
 
-@app.post("/upload_files_for_workflow", status_code=status.HTTP_202_ACCEPTED)
-async def upload_files_for_workflow_bg(
-    input_data: UploadWorkflowFilesInput,
-    background_tasks: BackgroundTasks
+
+@app.post("/chat_with_workflow_generation_chain")
+async def chat_with_workflow_generation_chain(
+        session_id: str = Form(..., description="Session ID della chain da caricare"),
+        user_message: str = Form(..., description="Messaggio che l’utente vuole inviare al modello"),
+        chat_history: Optional[List[Dict[str, str]]] = Body(
+            default=None,
+            description="Storia della conversazione in formato [{'role':'user'/'assistant', 'content': '...'}, ...]"
+        )
 ):
     """
-    Esegue l'upload dei file in background. L'endpoint risponde subito con 202 (Accepted).
-    Al termine, i risultati vengono salvati in un file JSON nella cartella 'workflowgeneration_output/'.
+    Endpoint per interagire direttamente con la workflow_generation_chain associata a session_id.
+    1) Carica la chain (workflow_generation_chain).
+    2) Esegue la richiesta dell'utente tramite la funzione execute_agent.
+    3) Restituisce la risposta del modello.
     """
-    # Genera un nome di file random
-    output_filename = f"workflowgeneration_output/{uuid.uuid4()}.json"
 
-    # Assicurati che la cartella esista
-    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    # Questi ID devono combaciare con quelli impostati in /configure_and_load_chain_2
+    chain_config_id = f"{session_id}-workflow_generation_chain_config"
+    chain_id = f"{session_id}-workflow_generation_chain"
 
-    # Avvia il task in background
-    background_tasks.add_task(_upload_files_for_workflow_bg, input_data, output_filename)
+    # Carichiamo (se non già caricato) la chain su NLP_CORE_SERVICE
+    load_chain_url = f"{NLP_CORE_SERVICE}/chains/load_chain/{chain_config_id}"
+    load_chain_response = requests.post(load_chain_url)
+    if load_chain_response.status_code not in [200, 400]:
+        raise HTTPException(
+            status_code=load_chain_response.status_code,
+            detail=f"Errore nel caricamento della chain: {load_chain_response.text}"
+        )
+
+    # Se chat_history è None lo inizializziamo come lista vuota
+    if chat_history is None:
+        chat_history = []
+
+    # Eseguiamo l'agent con la funzione già definita
+    agent_raw_response = execute_agent(chain_id=chain_id, input_query=user_message, chat_history=chat_history)
 
     return {
-        "detail": "Upload process started in background.",
-        "output_file": output_filename
+        "chain_id": chain_id,
+        "user_message": user_message,
+        "agent_response": agent_raw_response
     }
 
 
-@app.post("/generate_workflow", status_code=status.HTTP_202_ACCEPTED)
-async def generate_workflow_bg(
-    input_data: GenerateWorkflowInput,
-    background_tasks: BackgroundTasks
-):
+'''@app.post("/generate_workflows")#, response_model=List[Dict[str, Any]])
+async def generate_workflows(input_data: GenerateWorkflowsInput):
     """
-    Esegue la generazione dei workflow in background. L'endpoint risponde subito con 202 (Accepted).
-    Al termine, i risultati vengono salvati in un file JSON nella cartella 'workflowgeneration_output/'.
+    Genera workflow basati sui file forniti e un prompt specificato.
+    Esegue l'upload dei file a contesti multipli utilizzando un ID univoco.
     """
-    # Genera un nome di file random
-    output_filename = f"workflowgeneration_output/{uuid.uuid4()}.json"
+    time.sleep(5)
 
-    # Assicurati che la cartella esista
-    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    return {"output_id": str(uuid.uuid4())}'''
 
-    # Avvia il task in background
-    background_tasks.add_task(_generate_workflow_bg, input_data, output_filename)
-
-    return {
-        "detail": "Workflow generation started in background.",
-        "output_file": output_filename
-    }
-
-
-###############################################################
-# Avvio dell'app (se esegui come script singolo)
-###############################################################
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8091)
+
+    uvicorn.run(app, port=8091)
 
 
 

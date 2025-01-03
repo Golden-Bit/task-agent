@@ -1,7 +1,7 @@
 {
-  "nlp_core_service": "http://34.79.136.231:8100",
-  "mongodb_service": "http://34.79.136.231:8094",
+  "nlp_core_service": "http://35.205.92.199:8100",
+  "mongodb_service": "http://35.205.92.199:8094",
   "openai_api_keys": [
-    "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"
+    "..."
   ]
 }

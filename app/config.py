@@ -22,7 +22,7 @@ chatbot_config["copyright"] = "<h4 style='text-align: center; color: nightblue;'
 
 #######################################################
 
-chatbot_config["api_address"] = "http://34.79.136.231:8100"
+chatbot_config["api_address"] = "http://35.205.92.199:8100"
 
 #######################################################
 
