@@ -284,27 +284,27 @@ async def upload_file_to_contexts(file: UploadFile,
 
 
 # Create a new context (directory)
-@app.post("/contexts", response_model=ContextMetadata)
+#@app.post("/contexts", response_model=ContextMetadata)
 async def create_context(context_name: str = Form(...), description: Optional[str] = Form(None)):
     metadata = {"description": description} if description else None
     result = await create_context_on_server(context_name, metadata)
     return result
 
 # Delete an existing context (directory)
-@app.delete("/contexts/{context_name}", response_model=Dict[str, Any])
+#@app.delete("/contexts/{context_name}", response_model=Dict[str, Any])
 async def delete_context(context_name: str):
     result = await delete_context_on_server(context_name)
     # TODO: delete related vector store (and all related collection in document store)
     return result
 
 # List all available contexts
-@app.get("/contexts", response_model=List[ContextMetadata])
+#@app.get("/contexts", response_model=List[ContextMetadata])
 async def list_contexts():
     result = await list_contexts_from_server()
     return result
 
 # Upload a file to multiple contexts
-@app.post("/upload", response_model=FileUploadResponse)
+#@app.post("/upload", response_model=FileUploadResponse)
 async def upload_file_to_multiple_contexts(
         file: UploadFile = File(...),
         contexts: List[str] = Form(...),
@@ -364,7 +364,7 @@ async def delete_file_by_path(file_path: str):
 
 
 # Endpoint to list files by specific context(s)
-@app.get("/files", response_model=List[Dict[str, Any]])
+#@app.get("/files", response_model=List[Dict[str, Any]])
 async def list_files(contexts: Optional[List[str]] = Query(None)):
     """
     List files for specific contexts. If no contexts are provided, list all files.
@@ -374,7 +374,7 @@ async def list_files(contexts: Optional[List[str]] = Query(None)):
 
 
 # Endpoint to delete files by either UUID (deletes from all contexts) or path (deletes from a specific context)
-@app.delete("/files")
+#@app.delete("/files")
 async def delete_file(file_id: Optional[str] = Query(None), file_path: Optional[str] = Query(None)):
     """
     Delete a file by either its UUID (from all contexts) or its path (from a specific context).
@@ -406,7 +406,7 @@ async def upload_document(
     print(create_context_response)
     print(upload_file_response)
 
-    configure_and_load_chain_response = await configure_and_load_chain_1(context=_id, model_name="gpt-4o-mini")
+    configure_and_load_chain_response = await configure_and_load_chain_1(context=_id, model_name="gpt-4o")
 
     print(configure_and_load_chain_response)
 
@@ -680,7 +680,7 @@ async def configure_and_load_chain_2(
 ########################################################################################################################
 
 # Retrieve info associated with a single context (by ID or name)
-@app.get("/context_info/{context_name}", response_model=Dict[str, Any])
+#@app.get("/context_info/{context_name}", response_model=Dict[str, Any])
 async def get_context_info(context_name: str):
     result = await create_context_on_server(context_name)
     return result
@@ -695,7 +695,7 @@ def query_mongo(collection_url: str, query: Dict[str, Any]) -> List[Dict[str, An
 
 
 # Endpoint to get all workflows in a collection
-@app.get("/get_all_workflows")
+#@app.get("/get_all_workflows")
 async def get_all_workflows(collection_name: str = Query(..., description="The name of the collection to query")):
     """
     Retrieve all workflows from a specific MongoDB collection.
@@ -882,6 +882,8 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
     prompt = input_data.prompt
     max_iterations = input_data.max_iterations
 
+    # TODO:
+    #  - effettua chaiamta diretta alle funzioni senza passare per l'api
     # 1. Configurazione e caricamento chain (simulato)
     configure_chain_url = f"http://127.0.0.1:8091/configure_and_load_chain/?session_id={session_id}"
     try:
@@ -940,6 +942,8 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
         if "<command=TERMINATION| TRUE |command=TERMINATION>" in agent_response:
             is_terminated = True
 
+    # TODO:
+    #  - effettua chaiamta diretta alle funzioni senza passare per l'api
     # 3. Recupera i workflow generati (simulato)
     workflow_data = []
     try:

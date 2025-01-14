@@ -2,6 +2,8 @@ import json
 from typing import List, Dict, Any
 
 
+# TODO:
+#  - integra istruzioni per generare output in linea con schema aggiornato e visibile in file [doc_worflows_schema.md]
 def get_system_message(session_id, vectorstore_ids, file_descriptions):
     vectorstore_ids_str = ", ".join(vectorstore_ids)
     system_message = f"""Sei un assistente intelligente con le seguenti capacità:

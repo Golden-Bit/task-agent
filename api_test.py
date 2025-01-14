@@ -17,11 +17,11 @@ def test_upload_files_and_generate_workflows():
     generate_url = 'http://127.0.0.1:8091/generate_workflow'
 
     # session_id scelto dall'utente (puoi generarlo anche dinamicamente)
-    session_id = 'test_session_002'
+    session_id = '1286443'
 
     # Percorsi dei file locali da caricare
     local_files = [
-        {'path': 'certificato.pdf', 'description': 'Descrizione del certificato'}
+        {'path': 'TTControlPRO-S.pdf', 'description': 'Manuale TT-Controll Pro'}
         # Aggiungi altri file qui, se necessario
     ]
 
@@ -36,7 +36,7 @@ def test_upload_files_and_generate_workflows():
             with open(file_path, 'rb') as f:
                 content_base64 = base64.b64encode(f.read()).decode('utf-8')
                 files_data.append({
-                    'id_file': os.path.basename(file_path),  # Usa il nome del file come ID
+                    'id_file': os.path.basename(file_path).split(".")[0],  # Usa il nome del file come ID
                     'content_base64': content_base64,
                     'description': description
                 })
