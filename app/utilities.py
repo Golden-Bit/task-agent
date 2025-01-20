@@ -38,79 +38,151 @@ def get_system_message(session_id, vectorstore_ids, file_descriptions):
    - Non è necessario riportare l'intero workflow nella chat, ma puoi fornire un riepilogo delle principali decisioni prese.
 
 6. **Media Content**:
-   - Quando compili i campi **`mediaContent`**, per ciascun media (immagini, video, documenti), **includi solo** il **`id`**, il **`name`** e la **`description`**.
+   - Quando compili i campi **`mediaContent`**, per ciascun media (immagini, video, documenti), **includi solo** il **`file_id`**, **file_type**, il **`source_file`**, **title**, la **`description`**.
    - **Non compilare** il campo **`value`** (non devi inserire il contenuto base64).
 
 7. **Condizioni di Transizione**:
    - Crea le condizioni di movimento tra i task basandoti sulle direttive dell'utente e sulle informazioni ottenute dai documenti e dalle ricerche nei vector stores.
 
-**Schema da seguire per ogni task**:
+**Schema da seguire per ogni workflow**:
 
 ```json
-{{
-  "id": "string",
-  "name": "string",
-  "description": "string",
-  "type": "userTask",
-  "assignee": "string",
-  "candidateGroups": ["string"],
-  "formKey": "string",
-  "genericFields": {{}},
-  "mediaContent": {{
-    "images": [
-      {{
-        "id": "string",
-        "name": "string",
-        "description": "string"
-      }}
-    ],
-    "videos": [
-      {{
-        "id": "string",
-        "name": "string",
-        "description": "string"
-      }}
-    ],
-    "documents": [
-      {{
-        "id": "string",
-        "name": "string",
-        "description": "string"
-      }}
-    ]
-  }},
-  "script": null,
-  "conditions": [
     {{
-      "conditionExpression": "string",
-      "nextTaskId": "string"
+      "id": "<workflow_id_string>",
+      "title": "<titolo_del_workflow>",
+      "description": "<descrizione_del_workflow>",
+      "media": [
+        {{
+          "file_id": "<file_id_string>",
+          "file_type": "<pdf, docx, mp4, jpg etc...>",
+          "source_file": "<source_file_id_string>",
+          "title": "<title_string>",
+          "description": "<description_string>"
+        }},
+        {{
+          "file_id": "<file_id_string>",
+          "file_type": "<pdf, docx, mp4, jpg etc...>",
+          "source_file": "<source_file_id_string>",
+          "title": "<title_string>",
+          "description": "<description_string>"
+        }}
+      ],
+      "workflow": [
+        {{
+          "id": "<task_id_string>",
+          "name": "<nome_della_task>",
+          "description": "<descrizione_della_task>",
+          "type": "<tipologia_task>",
+          "assignee": "<utente_assegnato>",
+          "candidateGroups": [
+            "<gruppo_candidato1>",
+            "<gruppo_candidato2>"
+          ],
+          "formKey": "<form_key_string>",
+          "genericFields": {{}},
+          "mediaContent": {{
+            "documents": [
+              {{
+                "file_id": "<file_id_string>",
+                "file_type": "<pdf, docx, etc...>",
+                "source_file": "<source_file_id_string>",
+                "title": "<title_string>",
+                "description": "<description_string>"
+              }}
+            ],
+            "images": [
+              {{
+                "file_id": "<file_id_string>",
+                "file_type": "<jpg, png, etc...>",
+                "source_file": "<source_file_id_string>",
+                "title": "<title_string>",
+                "description": "<description_string>"
+              }}
+            ],
+            "videos": [
+              {{
+                "file_id": "<file_id_string>",
+                "file_type": "<mp4, mkv, etc...>",
+                "source_file": "<source_file_id_string>",
+                "title": "<title_string>",
+                "description": "<description_string>"
+              }}
+            ]
+          }},
+          "script": null,
+          "conditions": [],
+          "variables": {{}}
+        }}
+      ]
     }}
-  ],
-  "variables": {{}}
-}}
 
 **di seguito un esempio di workflow**:
 
 ```json
-{{
+{{  
+  "id": "WF_CONFIG_INGRESSI",
+  "title": "Workflow Configurazione Ingressi Digitali",
+  "description": "Procedura guidata per la configurazione degli ingressi digitali nel T.T. Control PRO.",
+  "media": [
+    {{
+      "file_id": "pdfDoc_v1",
+      "file_type": "pdf",
+      "source_file": "pdfDoc_v1",
+      "title": "Manuale d'uso per l'operatore (PDF base)",
+      "description": "Documento PDF principale contenente le istruzioni generali per T.T. Control PRO."
+    }},
+    {{
+      "file_id": "imgFig8_v1",
+      "file_type": "jpg",
+      "source_file": "pdfDoc_v1",
+      "title": "Figura 8",
+      "description": "Impostazione dei valori di ingressi digitali."
+    }},
+    {{
+      "file_id": "imgFig9_v1",
+      "file_type": "jpg",
+      "source_file": "pdfDoc_v1",
+      "title": "Figura 9",
+      "description": "Configurazione delle funzioni per ogni utenza e gruppo."
+    }},
+    {{
+      "file_id": "imgFig10_v1",
+      "file_type": "jpg",
+      "source_file": "pdfDoc_v1",
+      "title": "Figura 10",
+      "description": "Verifica e salvataggio della configurazione."
+    }}
+  ],
   "workflow": [
     {{
       "id": "task1",
-      "name": "Introduzione al T.T. Control PRO",
-      "description": "Fornire una panoramica sul sistema T.T. Control PRO, inclusi obiettivi e funzionalità principali.",
+      "name": "Accesso alla Configurazione degli Ingressi Digitali",
+      "description": "Accedere alla pagina di configurazione degli ingressi digitali (DI) dal menù principale. Toccare il riquadro 'DI' per aprire la pagina di configurazione. Qui verranno elencati i possibili ingressi digitali da configurare.",
       "type": "userTask",
       "assignee": "Operatore",
       "candidateGroups": ["Tecnici"],
-      "formKey": "introductionForm",
+      "formKey": "digitalInputAccessForm",
       "genericFields": {{}},
       "mediaContent": {{
         "documents": [
           {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 2)",
-            "description": "Introduzione al sistema T.T. Control PRO."
+            "file_id": "pdfDoc_v1",
+            "file_type": "pdf",
+            "source_file": "pdfDoc_v1",
+            "title": "Manuale d'uso per l'operatore (pagina 13)",
+            "description": "Impostazione dei valori di ingressi digitali."
           }}
-        ]
+        ],
+        "images": [
+          {{
+            "file_id": "imgFig8_v1",
+            "file_type": "jpg",
+            "source_file": "pdfDoc_v1",
+            "title": "Figura 8",
+            "description": "Impostazione dei valori di ingressi digitali."
+          }}
+        ],
+        "videos": []
       }},
       "script": null,
       "conditions": [],
@@ -118,245 +190,70 @@ def get_system_message(session_id, vectorstore_ids, file_descriptions):
     }},
     {{
       "id": "task2",
-      "name": "Configurazione del sistema",
-      "description": "Guidare l'operatore nella configurazione iniziale del sistema, compresa l'autenticazione.",
+      "name": "Configurazione di un Ingresso Digitale",
+      "description": "Selezionare un ingresso digitale da configurare, ad esempio DI_0. Premere sul tasto 'CFG' a lato dell'ingresso per accedere alle opzioni di configurazione. Assegnare le funzioni desiderate per l'utenza, il gruppo, e altre segnalazioni. Impostare i contatti come NC (Normalmente Chiuso) o NO (Normalmente Aperto).",
       "type": "userTask",
       "assignee": "Operatore",
       "candidateGroups": ["Tecnici"],
-      "formKey": "configurationForm",
+      "formKey": "digitalInputConfigurationForm",
       "genericFields": {{}},
       "mediaContent": {{
         "documents": [
           {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 12)",
-            "description": "Istruzioni per la configurazione del T.T. Control PRO."
+            "file_id": "pdfDoc_v1",
+            "file_type": "pdf",
+            "source_file": "pdfDoc_v1",
+            "title": "Manuale d'uso per l'operatore (pagina 14)",
+            "description": "Dettagli sulla configurazione degli ingressi digitali."
           }}
-        ]
+        ],
+        "images": [
+          {{
+            "file_id": "imgFig9_v1",
+            "file_type": "jpg",
+            "source_file": "pdfDoc_v1",
+            "title": "Figura 9",
+            "description": "Configurazione delle funzioni per ogni utenza e gruppo."
+          }}
+        ],
+        "videos": []
       }},
       "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task1.completed",
-          "nextTaskId": "task3"
-        }}
-      ],
+      "conditions": [],
       "variables": {{}}
     }},
     {{
       "id": "task3",
-      "name": "Stato del sistema",
-      "description": "Verificare lo stato di funzionamento del sistema T.T. Control PRO.",
+      "name": "Salvataggio della Configurazione",
+      "description": "Dopo aver configurato l'ingresso digitale, controllare la configurazione per evitare duplicati o errori. Se il controllo è positivo, applicare la configurazione premendo il tasto 'Salva e Esci'.",
       "type": "userTask",
       "assignee": "Operatore",
       "candidateGroups": ["Tecnici"],
-      "formKey": "systemStatusForm",
+      "formKey": "saveConfigurationForm",
       "genericFields": {{}},
       "mediaContent": {{
         "documents": [
           {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 11)",
-            "description": "Dettagli sullo stato del sistema."
+            "file_id": "pdfDoc_v1",
+            "file_type": "pdf",
+            "source_file": "pdfDoc_v1",
+            "title": "Manuale d'uso per l'operatore (pagina 15)",
+            "description": "Procedura di salvataggio della configurazione."
           }}
-        ]
-      }},
-      "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task2.completed",
-          "nextTaskId": "task4"
-        }}
-      ],
-      "variables": {{}}
-    }},
-    {{
-      "id": "task4",
-      "name": "Gestione Allarmi",
-      "description": "Imparare a gestire gli allarmi storici e attivi nel sistema.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "alarmManagementForm",
-      "genericFields": {{}},
-      "mediaContent": {{
-        "documents": [
+        ],
+        "images": [
           {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 51)",
-            "description": "Istruzioni per la gestione degli allarmi."
+            "file_id": "imgFig10_v1",
+            "file_type": "jpg",
+            "source_file": "pdfDoc_v1",
+            "title": "Figura 10",
+            "description": "Verifica e salvataggio della configurazione."
           }}
-        ]
+        ],
+        "videos": []
       }},
       "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task3.completed",
-          "nextTaskId": "task5"
-        }}
-      ],
-      "variables": {{}}
-    }},
-    {{
-      "id": "task5",
-      "name": "Configurazione Sinottico",
-      "description": "Configurare il sinottico per visualizzare lo stato delle utenze.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "synopticConfigurationForm",
-      "genericFields": {{}},
-      "mediaContent": {{
-        "documents": [
-          {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 32)",
-            "description": "Istruzioni per la configurazione del sinottico."
-          }}
-        ]
-      }},
-      "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task4.completed",
-          "nextTaskId": "task6"
-        }}
-      ],
-      "variables": {{}}
-    }},
-    {{
-      "id": "task6",
-      "name": "Esportazione Dati",
-      "description": "Imparare come esportare i dati storici su USB.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "dataExportForm",
-      "genericFields": {{}},
-      "mediaContent": {{
-        "documents": [
-          {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 37)",
-            "description": "Istruzioni per l'esportazione dei dati su USB."
-          }}
-        ]
-      }},
-      "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task5.completed",
-          "nextTaskId": "task7"
-        }}
-      ],
-      "variables": {{}}
-    }},
-    {{
-      "id": "task7",
-      "name": "Gestione Pompe",
-      "description": "Gestire le pompe attraverso il sistema, inclusa la registrazione delle informazioni.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "pumpManagementForm",
-      "genericFields": {{}},
-      "mediaContent": {{
-        "documents": [
-          {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 22)",
-            "description": "Dettagli sulla gestione delle pompe."
-          }}
-        ]
-      }},
-      "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task6.completed",
-          "nextTaskId": "task8"
-        }}
-      ],
-      "variables": {{}}
-    }},
-    {{
-      "id": "task8",
-      "name": "Configurazione Utenti",
-      "description": "Configurare gli utenti nel sistema T.T. Control PRO.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "userConfigurationForm",
-      "genericFields": {{}},
-      "mediaContent": {{
-        "documents": [
-          {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 38)",
-            "description": "Istruzioni per la configurazione degli utenti."
-          }}
-        ]
-      }},
-      "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task7.completed",
-          "nextTaskId": "task9"
-        }}
-      ],
-      "variables": {{}}
-    }},
-    {{
-      "id": "task9",
-      "name": "Monitoraggio delle Utenze",
-      "description": "Monitorare le utenze e assicurarsi che funzionino correttamente.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "usageMonitoringForm",
-      "genericFields": {{}},
-      "mediaContent": {{
-        "documents": [
-          {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 50)",
-            "description": "Dettagli sul monitoraggio delle utenze."
-          }}
-        ]
-      }},
-      "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task8.completed",
-          "nextTaskId": "task10"
-        }}
-      ],
-      "variables": {{}}
-    }},
-    {{
-      "id": "task10",
-      "name": "Conclusione e Feedback",
-      "description": "Raccogliere feedback sull'uso del sistema e concludere il workflow.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "conclusionForm",
-      "genericFields": {{}},
-      "mediaContent": {{
-        "documents": [
-          {{
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 53)",
-            "description": "Conclusione e note finali."
-          }}
-        ]
-      }},
-      "script": null,
-      "conditions": [
-        {{
-          "conditionExpression": "task9.completed",
-          "nextTaskId": null
-        }}
-      ],
+      "conditions": [],
       "variables": {{}}
     }}
   ]
@@ -512,172 +409,277 @@ Inizierò con la sezione "Configurazione del T.T. Control PRO". Per ottenere inf
 
 Workflow 1: Mappa delle Pagine di Configurazione
 
-{
-  "workflow": [
-    {
-      "id": "task1",
-      "name": "Accesso al Menù di Configurazione",
-      "description": "Accedere al menù di configurazione principale del T.T. Control PRO.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "configurationMenuAccessForm",
-      "genericFields": {},
-      "mediaContent": {
-        "documents": [
-          {
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 12)",
-            "description": "Descrizione delle icone del menù di configurazione."
-          }
-        ],
-        "images": [
-          {
-            "id": "Figura 7",
-            "name": "Menù di configurazione principale",
-            "description": "Menù di configurazione principale del T.T. Control PRO."
-          }
-        ]
-      },
-      "script": null,
-      "conditions": [],
-      "variables": {}
-    }
-  ]
-}
+    {{
+      "id": "WF_MENU_CONFIG",
+      "title": "Workflow: Accesso al Menù di Configurazione",
+      "description": "Procedura per accedere al menù di configurazione principale del T.T. Control PRO.",
+      "media": [
+        {{
+          "file_id": "pdfDoc_v1",
+          "file_type": "pdf",
+          "source_file": "pdfDoc_v1",
+          "title": "Manuale d'uso per l'operatore (pagina 12)",
+          "description": "Descrizione delle icone del menù di configurazione."
+        }},
+        {{
+          "file_id": "fig7_v1",
+          "file_type": "jpg",
+          "source_file": "pdfDoc_v1",
+          "title": "Menù di configurazione principale",
+          "description": "Menù di configurazione principale del T.T. Control PRO."
+        }}
+      ],
+      "workflow": [
+        {{
+          "id": "task1",
+          "name": "Accesso al Menù di Configurazione",
+          "description": "Accedere al menù di configurazione principale del T.T. Control PRO.",
+          "type": "userTask",
+          "assignee": "Operatore",
+          "candidateGroups": ["Tecnici"],
+          "formKey": "configurationMenuAccessForm",
+          "genericFields": {{}},
+          "mediaContent": {{
+            "documents": [
+              {{
+                "file_id": "pdfDoc_v1",
+                "file_type": "pdf",
+                "source_file": "pdfDoc_v1",
+                "title": "Manuale d'uso per l'operatore (pagina 12)",
+                "description": "Descrizione delle icone del menù di configurazione."
+              }}
+            ],
+            "images": [
+              {{
+                "file_id": "fig7_v1",
+                "file_type": "jpg",
+                "source_file": "pdfDoc_v1",
+                "title": "Menù di configurazione principale",
+                "description": "Menù di configurazione principale del T.T. Control PRO."
+              }}
+            ],
+            "videos": []
+          }},
+          "script": null,
+          "conditions": [],
+          "variables": {{}}
+        }}
+      ]
+    }}
 
 Workflow 2: Configurazione Ingressi Digitali (DI)
 
-{
-  "workflow": [
-    {
-      "id": "task2",
-      "name": "Configurazione Ingressi Digitali",
+    {{
+      "id": "WF_CONFIG_DI_1",
+      "title": "Workflow: Configurazione Ingressi Digitali (DI)",
       "description": "Impostare i valori di ingressi digitali nel sistema T.T. Control PRO.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "digitalInputConfigurationForm",
-      "genericFields": {},
-      "mediaContent": {
-        "documents": [
-          {
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 13)",
-            "description": "Impostazione dei valori di ingressi digitali."
-          }
-        ],
-        "images": [
-          {
-            "id": "Figura 8",
-            "name": "Configurazione DI",
-            "description": "Impostazione dei valori di ingressi digitali."
-          },
-          {
-            "id": "Figura 9",
-            "name": "Scelta funzioni/gruppi/utenze DI",
-            "description": "Configurazione delle funzioni per ogni utenza e gruppo."
-          }
-        ]
-      },
-      "script": null,
-      "conditions": [],
-      "variables": {}
-    }
-  ]
-}
+      "media": [
+        {{
+          "file_id": "pdfDoc_v1",
+          "file_type": "pdf",
+          "source_file": "pdfDoc_v1",
+          "title": "Manuale d'uso per l'operatore (pagina 13)",
+          "description": "Impostazione dei valori di ingressi digitali."
+        }},
+        {{
+          "file_id": "fig8_v1",
+          "file_type": "jpg",
+          "source_file": "pdfDoc_v1",
+          "title": "Configurazione DI",
+          "description": "Impostazione dei valori di ingressi digitali."
+        }},
+        {{
+          "file_id": "fig9_v1",
+          "file_type": "jpg",
+          "source_file": "pdfDoc_v1",
+          "title": "Scelta funzioni/gruppi/utenze DI",
+          "description": "Configurazione delle funzioni per ogni utenza e gruppo."
+        }}
+      ],
+      "workflow": [
+        {{
+          "id": "task2",
+          "name": "Configurazione Ingressi Digitali",
+          "description": "Impostare i valori di ingressi digitali nel sistema T.T. Control PRO.",
+          "type": "userTask",
+          "assignee": "Operatore",
+          "candidateGroups": ["Tecnici"],
+          "formKey": "digitalInputConfigurationForm",
+          "genericFields": {{}},
+          "mediaContent": {{
+            "documents": [
+              {{
+                "file_id": "pdfDoc_v1",
+                "file_type": "pdf",
+                "source_file": "pdfDoc_v1",
+                "title": "Manuale d'uso per l'operatore (pagina 13)",
+                "description": "Impostazione dei valori di ingressi digitali."
+              }}
+            ],
+            "images": [
+              {{
+                "file_id": "fig8_v1",
+                "file_type": "jpg",
+                "source_file": "pdfDoc_v1",
+                "title": "Configurazione DI",
+                "description": "Impostazione dei valori di ingressi digitali."
+              }},
+              {{
+                "file_id": "fig9_v1",
+                "file_type": "jpg",
+                "source_file": "pdfDoc_v1",
+                "title": "Scelta funzioni/gruppi/utenze DI",
+                "description": "Configurazione delle funzioni per ogni utenza e gruppo."
+              }}
+            ],
+            "videos": []
+          }},
+          "script": null,
+          "conditions": [],
+          "variables": {{}}
+        }}
+      ]
+    }}
 
 Workflow 3: Configurazione Ingressi Digitali (DI)
 
-{
-  "workflow": [
-    {
-      "id": "task1",
-      "name": "Accesso alla Configurazione degli Ingressi Digitali",
-      "description": "Accedere alla pagina di configurazione degli ingressi digitali (DI) dal menù principale. Toccare il riquadro 'DI' per aprire la pagina di configurazione. Qui verranno elencati i possibili ingressi digitali da configurare.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "digitalInputAccessForm",
-      "genericFields": {},
-      "mediaContent": {
-        "documents": [
-          {
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 13)",
-            "description": "Impostazione dei valori di ingressi digitali."
-          }
-        ],
-        "images": [
-          {
-            "id": "Figura 8",
-            "name": "Configurazione DI",
-            "description": "Impostazione dei valori di ingressi digitali."
-          }
-        ]
-      },
-      "script": null,
-      "conditions": [],
-      "variables": {}
-    },
-    {
-      "id": "task2",
-      "name": "Configurazione di un Ingresso Digitale",
-      "description": "Selezionare un ingresso digitale da configurare, ad esempio DI_0. Premere sul tasto 'CFG' a lato dell'ingresso per accedere alle opzioni di configurazione. Assegnare le funzioni desiderate per l'utenza, il gruppo, e altre segnalazioni. Impostare i contatti come NC (Normalmente Chiuso) o NO (Normalmente Aperto).",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "digitalInputConfigurationForm",
-      "genericFields": {},
-      "mediaContent": {
-        "documents": [
-          {
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 14)",
-            "description": "Dettagli sulla configurazione degli ingressi digitali."
-          }
-        ],
-        "images": [
-          {
-            "id": "Figura 9",
-            "name": "Scelta funzioni/gruppi/utenze DI",
-            "description": "Configurazione delle funzioni per ogni utenza e gruppo."
-          }
-        ]
-      },
-      "script": null,
-      "conditions": [],
-      "variables": {}
-    },
-    {
-      "id": "task3",
-      "name": "Salvataggio della Configurazione",
-      "description": "Dopo aver configurato l'ingresso digitale, controllare la configurazione per evitare duplicati o errori. Se il controllo è positivo, applicare la configurazione premendo il tasto 'Salva e Esci'.",
-      "type": "userTask",
-      "assignee": "Operatore",
-      "candidateGroups": ["Tecnici"],
-      "formKey": "saveConfigurationForm",
-      "genericFields": {},
-      "mediaContent": {
-        "documents": [
-          {
-            "id": "file1",
-            "name": "Manuale d'uso per l'operatore (pagina 15)",
-            "description": "Procedura di salvataggio della configurazione."
-          }
-        ],
-        "images": [
-          {
-            "id": "Figura 10",
-            "name": "Controllo Configurazione e Salvataggio",
-            "description": "Verifica e salvataggio della configurazione."
-          }
-        ]
-      },
-      "script": null,
-      "conditions": [],
-      "variables": {}
-    }
-  ]
-}
+    {{
+      "id": "WF_CONFIG_DI_2",
+      "title": "Workflow: Configurazione Ingressi Digitali (DI) - Dettagli",
+      "description": "Procedura dettagliata per configurare e salvare gli ingressi digitali nel T.T. Control PRO.",
+      "media": [
+        {{
+          "file_id": "pdfDoc_v1",
+          "file_type": "pdf",
+          "source_file": "pdfDoc_v1",
+          "title": "Manuale d'uso per l'operatore (PDF base)",
+          "description": "Documento principale con istruzioni per T.T. Control PRO."
+        }},
+        {{
+          "file_id": "fig8_v1",
+          "file_type": "jpg",
+          "source_file": "pdfDoc_v1",
+          "title": "Configurazione DI",
+          "description": "Impostazione dei valori di ingressi digitali."
+        }},
+        {{
+          "file_id": "fig9_v1",
+          "file_type": "jpg",
+          "source_file": "pdfDoc_v1",
+          "title": "Scelta funzioni/gruppi/utenze DI",
+          "description": "Configurazione delle funzioni per ogni utenza e gruppo."
+        }},
+        {{
+          "file_id": "fig10_v1",
+          "file_type": "jpg",
+          "source_file": "pdfDoc_v1",
+          "title": "Controllo Configurazione e Salvataggio",
+          "description": "Verifica e salvataggio della configurazione."
+        }}
+      ],
+      "workflow": [
+        {{
+          "id": "task1",
+          "name": "Accesso alla Configurazione degli Ingressi Digitali",
+          "description": "Accedere alla pagina di configurazione degli ingressi digitali (DI) dal menù principale. Toccare il riquadro 'DI' per aprire la pagina di configurazione. Qui verranno elencati i possibili ingressi digitali da configurare.",
+          "type": "userTask",
+          "assignee": "Operatore",
+          "candidateGroups": ["Tecnici"],
+          "formKey": "digitalInputAccessForm",
+          "genericFields": {{}},
+          "mediaContent": {{
+            "documents": [
+              {{
+                "file_id": "pdfDoc_v1",
+                "file_type": "pdf",
+                "source_file": "pdfDoc_v1",
+                "title": "Manuale d'uso per l'operatore (pagina 13)",
+                "description": "Impostazione dei valori di ingressi digitali."
+              }}
+            ],
+            "images": [
+              {{
+                "file_id": "fig8_v1",
+                "file_type": "jpg",
+                "source_file": "pdfDoc_v1",
+                "title": "Configurazione DI",
+                "description": "Impostazione dei valori di ingressi digitali."
+              }}
+            ],
+            "videos": []
+          }},
+          "script": null,
+          "conditions": [],
+          "variables": {{}}
+        }},
+        {{
+          "id": "task2",
+          "name": "Configurazione di un Ingresso Digitale",
+          "description": "Selezionare un ingresso digitale da configurare, ad esempio DI_0. Premere sul tasto 'CFG' a lato dell'ingresso per accedere alle opzioni di configurazione. Assegnare le funzioni desiderate per l'utenza, il gruppo, e altre segnalazioni. Impostare i contatti come NC (Normalmente Chiuso) o NO (Normalmente Aperto).",
+          "type": "userTask",
+          "assignee": "Operatore",
+          "candidateGroups": ["Tecnici"],
+          "formKey": "digitalInputConfigurationForm",
+          "genericFields": {{}},
+          "mediaContent": {{
+            "documents": [
+              {{
+                "file_id": "pdfDoc_v1",
+                "file_type": "pdf",
+                "source_file": "pdfDoc_v1",
+                "title": "Manuale d'uso per l'operatore (pagina 14)",
+                "description": "Dettagli sulla configurazione degli ingressi digitali."
+              }}
+            ],
+            "images": [
+              {{
+                "file_id": "fig9_v1",
+                "file_type": "jpg",
+                "source_file": "pdfDoc_v1",
+                "title": "Scelta funzioni/gruppi/utenze DI",
+                "description": "Configurazione delle funzioni per ogni utenza e gruppo."
+              }}
+            ],
+            "videos": []
+          }},
+          "script": null,
+          "conditions": [],
+          "variables": {{}}
+        }},
+        {{
+          "id": "task3",
+          "name": "Salvataggio della Configurazione",
+          "description": "Dopo aver configurato l'ingresso digitale, controllare la configurazione per evitare duplicati o errori. Se il controllo è positivo, applicare la configurazione premendo il tasto 'Salva e Esci'.",
+          "type": "userTask",
+          "assignee": "Operatore",
+          "candidateGroups": ["Tecnici"],
+          "formKey": "saveConfigurationForm",
+          "genericFields": {{}},
+          "mediaContent": {{
+            "documents": [
+              {{
+                "file_id": "pdfDoc_v1",
+                "file_type": "pdf",
+                "source_file": "pdfDoc_v1",
+                "title": "Manuale d'uso per l'operatore (pagina 15)",
+                "description": "Procedura di salvataggio della configurazione."
+              }}
+            ],
+            "images": [
+              {{
+                "file_id": "fig10_v1",
+                "file_type": "jpg",
+                "source_file": "pdfDoc_v1",
+                "title": "Controllo Configurazione e Salvataggio",
+                "description": "Verifica e salvataggio della configurazione."
+              }}
+            ],
+            "videos": []
+          }},
+          "script": null,
+          "conditions": [],
+          "variables": {{}}
+        }}
+      ]
+    }}
 """

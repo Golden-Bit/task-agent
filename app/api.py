@@ -14,6 +14,8 @@ import random
 import json
 from starlette.responses import StreamingResponse
 from io import BytesIO
+
+from app.aigo_sdk import upload_media_files, send_workflows
 from app.utilities import get_system_message
 
 app = FastAPI()
@@ -842,18 +844,26 @@ async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, ou
             )
 
             # Richiama la tua funzione esistente per l'upload
+
+            file_id = file.id_file #str(uuid.uuid4())[0:6]
+
             response = await upload_document(
                 session_id=session_id,
-                file_id=file.id_file,
+                file_id=file_id,
                 uploaded_file=upload_file,
                 description=file.description or ""
             )
 
-            results.append({
-                "file_id": file.id_file,
-                "upload_response": response,
-                "status": "success"
-            })
+            response["title"] = file.id_file
+            response["source_file"] = file_id
+            response["file_type"] = "pdf"
+            response["b64_content"] = file.content_base64
+
+            results.append(response) #({
+                #"file_id": file.id_file,
+                #"upload_response": response,
+                #"status": "success"
+            #})
 
         except Exception as e:
             error_msg = f"Errore durante l'upload del file {file.id_file}: {str(e)}"
@@ -863,14 +873,22 @@ async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, ou
                 "status": "failed"
             })
 
-    output_data = {
-        "session_id": session_id,
-        "results": results
-    }
+    ################################################################################################################
+    # TODO:
+    #  - chiama API di sergio e invia response
+    #
+    upload_media_files(results)
+    #
+    ################################################################################################################
+
+    #output_data = {
+    #    "session_id": session_id,
+    #    "results": results
+    #}
 
     # Scrivi il JSON di output nel file
     with open(output_filename, "w", encoding="utf-8") as f:
-        json.dump(output_data, f, ensure_ascii=False, indent=2)
+        json.dump(results, f, ensure_ascii=False, indent=2)
 
 
 async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filename: str):
@@ -926,7 +944,7 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
             f"Workflow da generare: {message_0}\n\n"
             f"--- Genera il workflow numero {cnt} (scomposizione: {grado_di_scomposizione}). "
             "Crea una work instruction dettagliata e completa per il flusso definito, e salvala nel DB. "
-            "Mostra il risultato in formato JSON. Se tutti i workflow sono stati generati, "
+            f"Mostra il risultato in formato JSON. Se tutti i workflow proposti sono stati generati e salvati (massimo {max_iterations}), allora "
             "invia la stringa di terminazione '<command=TERMINATION| TRUE |command=TERMINATION>'."
             "Nel caso in cui non sia presente niente nei file descvriptions allora per ora opera basandoti sull esempio fonrnito e restituisci cominque un risultato!"
         )
@@ -956,10 +974,24 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
     except Exception as e:
         print(f"An error occurred: {e}")
 
+    print(workflow_data)
+
     output_data = {
         "session_id": session_id,
-        "workflow_data": workflow_data
+        "workflows": []
     }
+
+    for item in list(workflow_data):
+        del item["_id"]
+        output_data["workflows"].append(item)
+
+    ################################################################################################################
+    # TODO:
+    #  - chiama API di sergio e invia response
+    #
+    send_workflows(output_data)
+    #
+    ################################################################################################################
 
     # Salva il file di output
     with open(output_filename, "w", encoding="utf-8") as f:
@@ -979,8 +1011,11 @@ async def upload_files_for_workflow_bg(
     Esegue l'upload dei file in background. L'endpoint risponde subito con 202 (Accepted).
     Al termine, i risultati vengono salvati in un file JSON nella cartella 'workflowgeneration_output/'.
     """
+
+    session_id = input_data.session_id
+
     # Genera un nome di file random
-    output_filename = f"workflowgeneration_output/{uuid.uuid4()}.json"
+    output_filename = f"workflowgeneration_output/{session_id}_uploaded_files_{time.time()}.json"
 
     # Assicurati che la cartella esista
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
@@ -1003,8 +1038,11 @@ async def generate_workflow_bg(
     Esegue la generazione dei workflow in background. L'endpoint risponde subito con 202 (Accepted).
     Al termine, i risultati vengono salvati in un file JSON nella cartella 'workflowgeneration_output/'.
     """
+
+    session_id = input_data.session_id
+
     # Genera un nome di file random
-    output_filename = f"workflowgeneration_output/{uuid.uuid4()}.json"
+    output_filename = f"workflowgeneration_output/{session_id}_workflows_{time.time()}.json"
 
     # Assicurati che la cartella esista
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
