@@ -275,7 +275,7 @@ async def upload_file_to_contexts(file: UploadFile,
                 f"{NLP_CORE_SERVICE}/vector_stores/vector_store/add_documents_from_store/{vector_store_id}",
                 params={"document_collection": doc_store_collection_name}, timeout=timeout_settings)
             if add_docs_response.status_code != 200:
-                print(add_docs_response)
+                print(add_docs_response.content)
                 raise HTTPException(status_code=add_docs_response.status_code, detail=add_docs_response.json())
 
         # Return the collected responses with file UUID and associated contexts
@@ -393,7 +393,7 @@ async def delete_file(file_id: Optional[str] = Query(None), file_path: Optional[
     return result
 ########################################################################################################################
 
-@app.post("/upload_document")
+#@app.post("/upload_document")
 async def upload_document(
         session_id: str = Form(...),
         file_id: str = Form(...),
@@ -403,9 +403,11 @@ async def upload_document(
     _id = f"{session_id}-{file_id}"
 
     create_context_response = await create_context(context_name=_id, description=description)
-    upload_file_response = await upload_file_to_contexts(file=uploaded_file, contexts=[_id], file_metadata=None)
 
     print(create_context_response)
+
+    upload_file_response = await upload_file_to_contexts(file=uploaded_file, contexts=[_id], file_metadata=None)
+
     print(upload_file_response)
 
     configure_and_load_chain_response = await configure_and_load_chain_1(context=_id, model_name="gpt-4o")
@@ -421,14 +423,20 @@ async def upload_document(
 
     inference_kwargs = {}
 
-    async with httpx.AsyncClient(timeout=120) as client:
-        response = await client.post(f"{NLP_CORE_SERVICE}/chains/execute_chain/",
-                                     json={"chain_id": chain_id, "query": query, "inference_kwargs": inference_kwargs})
+    cnt = 0
+    while True:
+        cnt += 1
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(f"{NLP_CORE_SERVICE}/chains/execute_chain/",
+                                         json={"chain_id": chain_id, "query": query, "inference_kwargs": inference_kwargs})
 
-        if response.status_code != 200:
-            #print(response.content)
-            #print(response.json())
-            raise HTTPException(status_code=response.status_code, detail=response.json())
+            if response.status_code != 200 and cnt == 10:
+                raise HTTPException(status_code=response.status_code, detail=response.json())
+            elif response.status_code != 200:
+                print(response.json())
+                pass
+            else:
+                break
 
     print(response.json())
 
@@ -479,7 +487,7 @@ async def upload_document(
     return data
 
 ########################################################################################################################
-#@app.post("/configure_and_load_chain_1/")
+@app.post("/configure_and_load_chain_1/")
 async def configure_and_load_chain_1(
     context: str = Query("default", title="Context", description="The context for the chain configuration"),
     model_name: str = Query("gpt-4o", title="Model Name", description="The name of the LLM model to load, default is gpt-4o")
@@ -584,7 +592,7 @@ async def configure_and_load_chain_1(
 
 ########################################################################################################################
 
-@app.post("/configure_and_load_chain/")
+@app.post("/configure_and_load_chain_2/")
 async def configure_and_load_chain_2(
     session_id: str = Query("default", title="Session ID", description="The session id used for the chain configuration"),
     model_name: str = Query("gpt-4o", title="Model Name", description="The name of the LLM model to load, default is gpt-4o")
@@ -745,17 +753,25 @@ def execute_agent(chain_id: str, input_query: str, chat_history: List[Dict[str, 
     }
 
     # Eseguire la richiesta POST all'API
-    try:
-        response = requests.post(api_url, json=payload)
-        response.raise_for_status()  # Solleva un'eccezione per codici di errore HTTP
-        #data = response.json()  # Decodifica la risposta JSON
-        data = response.__dict__['_content'].decode()
-        print("Risultato dell'API:")
-        print(data)
-        return data
-        #print(json.dumps(data, indent=2))  # Stampa il risultato formattato
-    except requests.exceptions.RequestException as e:
-        print(f"Errore nella chiamata all'API: {e}")
+    cnt = 0
+    data = None
+    while True:
+        cnt += 1
+
+        try:
+            response = requests.post(api_url, json=payload)
+            response.raise_for_status()  # Solleva un'eccezione per codici di errore HTTP
+            #data = response.json()  # Decodifica la risposta JSON
+            data = response.__dict__['_content'].decode()
+            print("Risultato dell'API:")
+            print(data)
+            break
+            #print(json.dumps(data, indent=2))  # Stampa il risultato formattato
+        except requests.exceptions.RequestException as e:
+            print(f"Errore nella chiamata all'API: {e}")
+            if cnt == 10:
+                break
+    return data
 
 
 # -------------------------------------------------------
@@ -900,17 +916,20 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
     prompt = input_data.prompt
     max_iterations = input_data.max_iterations
 
-    # TODO:
-    #  - effettua chaiamta diretta alle funzioni senza passare per l'api
-    # 1. Configurazione e caricamento chain (simulato)
-    configure_chain_url = f"http://127.0.0.1:8091/configure_and_load_chain/?session_id={session_id}"
+    # 1) (Opzionale) Garantiamo che la chain di sessione sia caricata.
+    #    Puoi chiamare la tua funzione per configurare e caricare la chain:
     try:
-        resp_conf = requests.post(configure_chain_url)
-        if resp_conf.status_code != 200:
-            # In un caso reale potresti loggare o gestire diversamente
-            print(f"Failed to configure agent: {resp_conf.text}")
+        # CHIAMATA DIRETTA DELLA FUNZIONE ASINCRONA
+        resp_conf = await configure_and_load_chain_2(
+            session_id=session_id,
+            model_name="gpt-4o"    # o qualsiasi model_name desideri
+        )
+
+        print(resp_conf)
+
+        # Qui, volendo, puoi gestire i dati di resp_conf come preferisci (es. controllare 'message', 'load_result', ecc.)
     except Exception as e:
-        print(f"An error occurred during agent configuration: {str(e)}")
+        print(f"[WARN] Errore durante la riconfigurazione della chain: {str(e)}")
 
     # 2. Interazione con l’agente per generare i workflow
     chat_history = []
@@ -965,16 +984,11 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
     # 3. Recupera i workflow generati (simulato)
     workflow_data = []
     try:
-        get_last_workflow_url = f"http://127.0.0.1:8091/get_last_workflow?session_id={session_id}"
-        resp_last = requests.get(get_last_workflow_url)
-        if resp_last.status_code == 200:
-            workflow_data = resp_last.json()
-        else:
-            print(f"Failed to retrieve last workflow: {resp_last.text}")
+        workflow_data = await get_last_workflow(session_id=session_id)
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred fetching last workflow: {e}")
 
-    print(workflow_data)
+    #print(workflow_data)
 
     output_data = {
         "session_id": session_id,
@@ -1053,6 +1067,57 @@ async def generate_workflow_bg(
     return {
         "detail": "Workflow generation started in background.",
         "output_file": output_filename
+    }
+
+class ChatWithAgentInput(BaseModel):
+    """
+    Modello per l'endpoint di chat con l'agente.
+    """
+    session_id: str = Field(..., description="ID univoco della sessione già configurata")
+    user_input: str = Field(..., description="Messaggio di input dell'utente")
+    chat_history: Optional[List[Dict[str, str]]] = Field(
+        default=None,
+        description="Storico della conversazione. Lista di dizionari con chiavi 'role' e 'content'"
+    )
+
+
+@app.post("/chat_with_agent")
+async def chat_with_agent(input_data: ChatWithAgentInput):
+    """
+    Endpoint che permette di inviare un messaggio all'agente
+    ed ottenere una risposta in modo sincrono.
+    """
+
+    # 1) (Opzionale) Garantiamo che la chain di sessione sia caricata.
+    #    Puoi chiamare la tua funzione per configurare e caricare la chain:
+    try:
+        # CHIAMATA DIRETTA DELLA FUNZIONE ASINCRONA
+        resp_conf = await configure_and_load_chain_2(
+            session_id=input_data.session_id,
+            model_name="gpt-4o"    # o qualsiasi model_name desideri
+        )
+
+        print(resp_conf)
+
+        # Qui, volendo, puoi gestire i dati di resp_conf come preferisci (es. controllare 'message', 'load_result', ecc.)
+    except Exception as e:
+        print(f"[WARN] Errore durante la riconfigurazione della chain: {str(e)}")
+
+
+    # 2) Recuperiamo la chat_history dal body. Se None, la impostiamo a [].
+    chat_history = input_data.chat_history or []
+
+    # 3) Eseguiamo la query sull'agente (usando la funzione esistente 'execute_agent')
+    chain_id = f"{input_data.session_id}-workflow_generation_chain"
+    agent_response = execute_agent(
+        chain_id=chain_id,
+        input_query=input_data.user_input,
+        chat_history=chat_history
+    )
+
+    # 4) Restituiamo la risposta ottenuta
+    return {
+        "assistant_response": agent_response
     }
 
 

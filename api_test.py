@@ -17,7 +17,7 @@ def test_upload_files_and_generate_workflows():
     generate_url = 'http://127.0.0.1:8091/generate_workflow'
 
     # session_id scelto dall'utente (puoi generarlo anche dinamicamente)
-    session_id = '16254893'
+    session_id = '038175319'
 
     # Percorsi dei file locali da caricare
     local_files = [
@@ -69,6 +69,8 @@ def test_upload_files_and_generate_workflows():
     except Exception as e:
         print(f'È occorso un errore durante la richiesta di upload: {e}')
         return
+
+    #input("...")
 
     #if True:
     #    return
