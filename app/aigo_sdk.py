@@ -3,8 +3,8 @@ import requests
 import json
 
 
-def upload_media_files(payload: Any):
-    url = "https://dev-aigo.theia-innovation.com/api/v1/instructions/media"
+def upload_media_files(payload: Any, callback_url: str = "https://dev-aigo.theia-innovation.com/api/v1"):
+    url = f"{callback_url}/instructions/media"
 
     # Headers: imposta Content-Type e, se richiesto, il token di autorizzazione
     #headers = {
@@ -25,8 +25,8 @@ def upload_media_files(payload: Any):
         print("Dettagli:", response.text)
 
 
-def send_workflows(payload: Any):
-    url = "https://dev-aigo.theia-innovation.com/api/v1/instructions/webhook"
+def send_workflows(payload: Any, callback_url: str = "https://dev-aigo.theia-innovation.com/api/v1"):
+    url = f"{callback_url}/instructions/webhook"
 
     # Esempio di headers: aggiungi token se necessario
     #headers = {

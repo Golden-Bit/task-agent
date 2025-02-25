@@ -898,7 +898,7 @@ class UploadWorkflowFilesInput(BaseModel):
     """
     session_id: str = Field(..., description="ID univoco della sessione")
     files: List[WorkflowInputFile] = Field(..., description="Lista di file in input da caricare")
-
+    callback_url: str = "https://dev-aigo.theia-innovation.com/api/v1"
 
 class UploadWorkflowFilesOutput(BaseModel):
     """
@@ -908,7 +908,7 @@ class UploadWorkflowFilesOutput(BaseModel):
     """
     session_id: str = Field(..., description="ID univoco della sessione")
     results: List[Dict[str, Any]] = Field(..., description="Lista di risultati di caricamento per ogni file")
-
+    callback_url: str = "https://dev-aigo.theia-innovation.com/api/v1"
 
 class GenerateWorkflowInput(BaseModel):
     """
@@ -936,7 +936,7 @@ class GenerateWorkflowOutput(BaseModel):
 #                  FUNZIONI DI BACKGROUND
 ###############################################################
 
-async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, output_filename: str):
+async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, output_filename: str, callback_url: str):
     """
     Funzione di BACKGROUND che esegue realmente la logica di upload.
     Salva il risultato in un file JSON locale (output_filename).
@@ -990,7 +990,7 @@ async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, ou
     # TODO:
     #  - chiama API di sergio e invia response
     #
-    upload_media_files(results)
+    upload_media_files(results, callback_url=callback_url)
     #
     ################################################################################################################
 
@@ -1004,7 +1004,7 @@ async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, ou
         json.dump(results, f, ensure_ascii=False, indent=2)
 
 
-async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filename: str):
+async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filename: str, callback_url: str):
     """
     Funzione di BACKGROUND che esegue realmente la generazione dei workflow.
     Salva il risultato in un file JSON locale (output_filename).
@@ -1100,7 +1100,7 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
     # TODO:
     #  - chiama API di sergio e invia response
     #
-    send_workflows(output_data)
+    send_workflows(output_data, callback_url)
     #
     ################################################################################################################
 
@@ -1132,7 +1132,7 @@ async def upload_files_for_workflow_bg(
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
 
     # Avvia il task in background
-    background_tasks.add_task(_upload_files_for_workflow_bg, input_data, output_filename)
+    background_tasks.add_task(_upload_files_for_workflow_bg, input_data, output_filename, input_data.callback_url)
 
     return {
         "detail": "Upload process started in background.",
@@ -1159,7 +1159,7 @@ async def generate_workflow_bg(
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
 
     # Avvia il task in background
-    background_tasks.add_task(_generate_workflow_bg, input_data, output_filename)
+    background_tasks.add_task(_generate_workflow_bg, input_data, output_filename, input_data.callback_url)
 
     return {
         "detail": "Workflow generation started in background.",
