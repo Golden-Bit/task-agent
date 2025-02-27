@@ -920,7 +920,7 @@ class GenerateWorkflowInput(BaseModel):
     session_id: str = Field(..., description="ID univoco della sessione")
     prompt: str = Field(..., description="Prompt per la generazione dei workflow")
     max_iterations: int = Field(5, description="Numero massimo di workflow da generare")
-
+    callback_url: str = "https://dev-aigo.theia-innovation.com/api/v1"
 
 class GenerateWorkflowOutput(BaseModel):
     """
