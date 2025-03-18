@@ -967,6 +967,7 @@ async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, ou
                 description=file.description or ""
             )
 
+            response["session_id"] = file.id_file
             response["title"] = file.id_file
             response["source_file"] = file_id
             response["file_type"] = "pdf"
@@ -981,6 +982,7 @@ async def _upload_files_for_workflow_bg(input_data: UploadWorkflowFilesInput, ou
         except Exception as e:
             error_msg = f"Errore durante l'upload del file {file.id_file}: {str(e)}"
             results.append({
+                "session_id": file.id_file,
                 "file_id": file.id_file,
                 "error": error_msg,
                 "status": "failed"
