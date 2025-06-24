@@ -158,7 +158,6 @@ async def upload_file_to_contexts(file: UploadFile,
 
             # Make the POST request to upload the file to the current context
             response = await client.post(f"{NLP_CORE_SERVICE}/data_stores/upload", data=data, files=files, timeout=timeout_settings)
-
             if response.status_code != 200:
                 print(
                     f"Error uploading to {context}. Status Code: {response.status_code}. Response content: {response.content}")
@@ -919,7 +918,7 @@ class GenerateWorkflowInput(BaseModel):
     """
     session_id: str = Field(..., description="ID univoco della sessione")
     prompt: str = Field(..., description="Prompt per la generazione dei workflow")
-    max_iterations: int = Field(5, description="Numero massimo di workflow da generare")
+    max_iterations: int = Field(1, description="Numero massimo di workflow da generare")
     callback_url: str = "https://dev-aigo.theia-innovation.com/api/v1"
 
 class GenerateWorkflowOutput(BaseModel):
@@ -1013,7 +1012,7 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
     """
     session_id = input_data.session_id
     prompt = input_data.prompt
-    max_iterations = input_data.max_iterations
+    max_iterations = 1 #input_data.max_iterations
 
     # 1) (Opzionale) Garantiamo che la chain di sessione sia caricata.
     #    Puoi chiamare la tua funzione per configurare e caricare la chain:
@@ -1033,14 +1032,25 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
     # 2. Interazione con l’agente per generare i workflow
     chat_history = []
     message_0 = (
-        f"{prompt}\n\n"
-        "Osserva e analizza il documento fornito, dunque ipotizza tutte le workflow che si possono creare (senza crearle) "
+        f"\n\n#------------------------------------------------------------------------------------------------------------#"
+        f"PROMPT: "
+        f"{prompt}"
+        f"#------------------------------------------------------------------------------------------------------------#\n\n"
+        #"Osserva e analizza il documento fornito, dunque ipotizza tutte le workflow che si possono creare (senza crearle) "
+        "In base al prompt fornito, allora genera un workflow coerente con le richeiste fatte "
         "e associa ad esse i contenuti a cui fare riferimento (citando pagine di documenti e immagini contenute in essi) "
-        "per crearle successivamente in dettaglio (le creerai nei prossimi messaggi). Queste direttive sintetiche "
-        f"verranno usate dopo per sviluppare sequenzialmente i workflow dettagliati. "
-        f"Concentrati solo sulle workflow di configurazione per un massimo di {max_iterations}, "
-        "inoltre assicurati di scrivere le proposte di workflow in lista numerata. "
-        "Nel caso in cui non sia presente niente nei file descvriptions allora per ora opera basandoti sull esempio fonrnito e restituisci cominque un risultato!"
+        "per crearle successivamente in dettaglio (le creerai nei prossimi messaggi). "
+        #"Queste direttive sintetiche "
+        #f"verranno usate dopo per sviluppare sequenzialmente i workflow dettagliati. "
+        #f"Concentrati solo sulle workflow di configurazione per un massimo di {max_iterations}, "
+        "inoltre assicurati di scrivere la proposta di workflow in modo dettalgiato e in un numero di step adeguato. non essere troppo sintetico e superficiale, "
+        "ossia crea un workflow dettalgiato,"
+        "in particolare se grado di scomposizione è basso allora tendi ad essere meno dettagliato, emntre se grado di scomposizione è alto allora dovria essere molto dettagliato. "
+        #"Nel caso in cui non sia presente niente nei file descvriptions allora per ora opera basandoti sull esempio fonrnito e restituisci cominque un risultato!"
+        "per la generazione del workflow e dei relativi task, dovrai attignere alle informazioni contentue nella base di dati fornita, "
+        "non dovrai inventare dati e informazioni o rispondere con procedure che non sono citate nei documenti. "
+        "in tal caso dovrai rispondere con un workflow di default avente nome che indica errore 'ERROR' e unico task che contiene"
+        " un messaggio che comuncia come mai non si è genreato il workflow."
     )
 
     # Prima invocazione all'agent
@@ -1059,12 +1069,16 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
     while not is_terminated and cnt <= max_iterations:
         cnt += 1
         next_message = (
-            f"Workflow da generare: {message_0}\n\n"
-            f"--- Genera il workflow numero {cnt} (scomposizione: {grado_di_scomposizione}). "
+            f"\n\n#------------------------------------------------------------------------------------------------------------#"
+            f"ISTRUZIONI WORKFLOW DA GENERARE: "
+            f"{message_0}"
+            f"#------------------------------------------------------------------------------------------------------------#\n\n"
+            f"--- Genera il workflow applicando un grado di scomposizione {grado_di_scomposizione}). "
             "Crea una work instruction dettagliata e completa per il flusso definito, e salvala nel DB. "
-            f"Mostra il risultato in formato JSON. Se tutti i workflow proposti sono stati generati e salvati (massimo {max_iterations}), allora "
-            "invia la stringa di terminazione '<command=TERMINATION| TRUE |command=TERMINATION>'."
-            "Nel caso in cui non sia presente niente nei file descvriptions allora per ora opera basandoti sull esempio fonrnito e restituisci cominque un risultato!"
+            f"Mostra il risultato in formato JSON. "
+            #f"Se tutti i workflow proposti sono stati generati e salvati (massimo {max_iterations}), allora "
+            #"invia la stringa di terminazione '<command=TERMINATION| TRUE |command=TERMINATION>'."
+            #"Nel caso in cui non sia presente niente nei file descvriptions allora per ora opera basandoti sull esempio fonrnito e restituisci cominque un risultato!"
         )
 
         agent_response = execute_agent(
@@ -1075,8 +1089,9 @@ async def _generate_workflow_bg(input_data: GenerateWorkflowInput, output_filena
         chat_history.append({"role": "user", "content": next_message})
         chat_history.append({"role": "assistant", "content": agent_response})
 
-        if "<command=TERMINATION| TRUE |command=TERMINATION>" in agent_response:
-            is_terminated = True
+        #if "<command=TERMINATION| TRUE |command=TERMINATION>" in agent_response:
+        #    is_terminated = True
+        is_terminated = True
 
     # TODO:
     #  - effettua chaiamta diretta alle funzioni senza passare per l'api

@@ -13,15 +13,19 @@ def test_upload_files_and_generate_workflows():
     # 1) PREPARAZIONE DATI E CONFIGURAZIONE
     # -----------------------------------------------------
     # URL dei due endpoint
+    upload_url = 'http://35.195.200.211:8091/upload_files_for_workflow'
     upload_url = 'http://127.0.0.1:8091/upload_files_for_workflow'
+
+    generate_url = 'http://35.195.200.211:8091/generate_workflow'
     generate_url = 'http://127.0.0.1:8091/generate_workflow'
 
     # session_id scelto dall'utente (puoi generarlo anche dinamicamente)
-    session_id = '038175319'
+    session_id = 'fadR5345hfsfg3-21gt'
 
     # Percorsi dei file locali da caricare
     local_files = [
-        {'path': 'TTControlPRO-S.pdf', 'description': 'Manuale TT-Controll Pro'}
+        #{'path': 'TTControlPRO-S.pdf', 'description': 'Manuale TT-Controll Pro'}
+        {'path': 'test.txt', 'description': 'test txt file'}
         # Aggiungi altri file qui, se necessario
     ]
 
@@ -70,7 +74,7 @@ def test_upload_files_and_generate_workflows():
         print(f'È occorso un errore durante la richiesta di upload: {e}')
         return
 
-    #input("...")
+    input("...")
 
     #if True:
     #    return
