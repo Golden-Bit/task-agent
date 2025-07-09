@@ -9,20 +9,20 @@ def upload_media_files(payload: Any, callback_url: str = "https://dev-aigo.theia
     # Headers: imposta Content-Type e, se richiesto, il token di autorizzazione
     #headers = {
     #    "Content-Type": "application/json",
-    #    "Authorization": "Bearer <LA_TUA_AUTH_TOKEN>"  # Rimuovi o modifica se non serve
+        #"Authorization": "Bearer <LA_TUA_AUTH_TOKEN>"  # Rimuovi o modifica se non serve
     #}
 
     # Invia la richiesta POST con il payload in JSON
-    #response = requests.post(url,
-                             #headers=headers,
-    #                         data=json.dumps(payload))
+    response = requests.post(url,
+    #                         headers=headers,
+                             data=json.dumps(payload))
 
     # Verifica la risposta
-    #if response.status_code == 200 or response.status_code == 201:
-    #    print("Caricamento avvenuto con successo:", response.json())
-    #else:
-    #    print(f"Errore durante il caricamento. Codice HTTP: {response.status_code}")
-    #    print("Dettagli:", response.text)
+    if response.status_code == 200 or response.status_code == 201:
+        print("Caricamento avvenuto con successo:", response.json())
+    else:
+        print(f"Errore durante il caricamento. Codice HTTP: {response.status_code}")
+        print("Dettagli:", response.text)
 
 
 def send_workflows(payload: Any, callback_url: str = "https://dev-aigo.theia-innovation.com/api/v1"):
